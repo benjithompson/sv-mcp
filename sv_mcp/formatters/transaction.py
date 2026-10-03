@@ -38,6 +38,7 @@ def format_http_transactions(transactions: List[Any], params: Optional[dict] = N
                 type=transaction.get("type"),
                 dsl=GenericDsl(**dsl_dict),
                 assets=[AssignedAsset(**d) for d in transaction.get("assets") or []],
+                sqlHint=transaction.get("sqlHint"),
             )
         )
     return formatted_transactions

@@ -97,6 +97,18 @@ def test_format_http_transactions_round_trip_no_double_encoding():
     assert re_encoded == "eyJmb28iOiAiYmFyIn0="
 
 
+def test_format_http_transactions_maps_sql_hint():
+    fixture = load_fixture("transaction")["http"]
+    fixture[0]["sqlHint"] = "select * from users where email = '${request.query.email}'"
+    result = format_http_transactions(fixture)
+    assert result[0].sqlHint == "select * from users where email = '${request.query.email}'"
+
+
+def test_format_http_transactions_missing_sql_hint_is_none():
+    result = format_http_transactions(load_fixture("transaction")["http"])
+    assert result[0].sqlHint is None
+
+
 def test_format_messaging_transactions_happy_path():
     result = format_messaging_transactions(load_fixture("transaction")["messaging"])
     assert len(result) == 1

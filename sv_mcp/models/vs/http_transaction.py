@@ -13,6 +13,10 @@ class HttpTransaction(BaseModel):
                                      description="The unique identifier of the service where the transaction belongs")
     dsl: GenericDsl = Field(..., description="Transaction DSL")
     assets: Optional[List[AssignedAsset]] = Field(None, description="List of assets")
+    sqlHint: Optional[str] = Field(None,
+                                   description="SQLite query used to select service data rows for this transaction "
+                                               "when the virtual service uses SQL data mode, "
+                                               "e.g. select * from users where email = '${request.query.email}'")
 
     class Config:
         # Matches GenericDsl/RequestDsl/MatcherDsl for consistency. Note: this alone does not
