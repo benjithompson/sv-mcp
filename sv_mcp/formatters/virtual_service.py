@@ -56,6 +56,9 @@ def format_virtual_services(virtual_services: List[Any], params: Optional[dict] 
                 proxy=ProxyConfiguration(**vs.get("proxy")) if vs.get("proxy") else None,
                 brokerConfig=BrokerConfiguration(**vs.get("brokerConfig")) if vs.get("brokerConfig") else None,
                 assets=[AssignedAsset(**d) for d in vs.get("assets") or []],
+                tags=vs.get("tags") or [],
+                cacheType=vs.get("cacheType"),
+                initialSqlScript=vs.get("initialSqlScript"),
             )
         )
     return formatted_vs

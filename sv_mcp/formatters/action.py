@@ -8,12 +8,19 @@ from sv_mcp.models.vs.web_action import WebAction
 def format_actions(actions: List[Any], params: Optional[dict] = None) -> List[Action]:
     formatted_actions = []
     for action in actions:
+        # The STATE_UPDATE definition shape is not published, so it is passed through verbatim.
+        definition = action.get("definition")
+        if action.get("actionType") != "STATE_UPDATE":
+            definition = WebAction(**(definition or {}))
         formatted_actions.append(
             Action(
                 id=action.get("id"),
                 name=action.get("name", "Unknown"),
                 actionType=action.get("actionType"),
-                definition=WebAction(**(action.get("definition") or {})),
+                definition=definition,
+                transactionId=action.get("transactionId"),
+                priority=action.get("priority"),
+                conditions=action.get("conditions") or [],
                 assets=[AssignedAsset(**d) for d in action.get("assets") or []],
             )
         )

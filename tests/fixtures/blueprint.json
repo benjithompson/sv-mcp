@@ -1,0 +1,40 @@
+[
+  {
+    "id": 42,
+    "name": "Orders demo",
+    "description": "Stores orders and reads them back",
+    "tags": ["stateful", "demo"],
+    "scope": "GLOBAL",
+    "hasImage": true,
+    "hasBlazeData": true,
+    "transactionCount": 1,
+    "transactions": [
+      {
+        "id": 501,
+        "blueprintId": 42,
+        "name": "create order",
+        "description": "Stores a new order",
+        "type": "HTTP",
+        "dsl": {
+          "type": "HTTP",
+          "requestDsl": {
+            "method": "POST",
+            "url": {"key": "url", "matcherName": "equals_url", "matchingValue": "/orders"}
+          },
+          "responseDsl": {"status": 201}
+        },
+        "actionsData": [
+          {
+            "id": 9001,
+            "name": "store order",
+            "actionType": "STATE_UPDATE",
+            "definition": {"opaqueKey": "opaque value", "opaqueNested": {"items": [1, 2]}},
+            "conditions": [],
+            "priority": 1
+          }
+        ]
+      }
+    ],
+    "created": "2026-01-15T10:00:00Z"
+  }
+]

@@ -50,7 +50,8 @@ class HttpTransactionManager:
             params=parameters)
 
     async def create(self, transaction_name: str, workspace_id: int, service_id,
-                     dsl: GenericDsl, delay: int, sample_body: Optional[str] = None) -> BaseResult:
+                     dsl: GenericDsl, delay: int, sample_body: Optional[str] = None,
+                     sql_hint: Optional[str] = None) -> BaseResult:
         # Convert GenericDsl to dict for JSON serialization
         dsl_dict = dsl.model_dump() if isinstance(dsl, GenericDsl) else dsl
         request = dsl_dict.get("requestDsl")
@@ -77,6 +78,8 @@ class HttpTransactionManager:
                 }
             ]
         }
+        if sql_hint is not None:
+            transaction_body["transactions"][0]["sqlHint"] = sql_hint
         parameters = {
             "serviceId": service_id,
         }
@@ -96,7 +99,8 @@ class HttpTransactionManager:
         return result
 
     async def update(self, id: int, transaction_name: str, workspace_id: int,
-                     dsl: GenericDsl, delay: int, sample_body: Optional[str] = None) -> BaseResult:
+                     dsl: GenericDsl, delay: int, sample_body: Optional[str] = None,
+                     sql_hint: Optional[str] = None) -> BaseResult:
         # Convert GenericDsl to dict for JSON serialization
         dsl_dict = dsl.model_dump() if isinstance(dsl, GenericDsl) else dsl
         request = dsl_dict.get("requestDsl")
@@ -119,6 +123,8 @@ class HttpTransactionManager:
             "dsl": dsl_dict,
             "name": transaction_name
         }
+        if sql_hint is not None:
+            transaction_body["sqlHint"] = sql_hint
         result = await vs_api_request(
             self.token,
             "PUT",
@@ -176,8 +182,9 @@ class HttpTransactionManager:
         )
 
     async def create_and_test(self, transaction_name: str, workspace_id: int, service_id: int,
-                              dsl, delay, test_cases: list, sample_body: Optional[str] = None) -> BaseResult:
-        create_result = await self.create(transaction_name, workspace_id, service_id, dsl, delay, sample_body)
+                              dsl, delay, test_cases: list, sample_body: Optional[str] = None,
+                              sql_hint: Optional[str] = None) -> BaseResult:
+        create_result = await self.create(transaction_name, workspace_id, service_id, dsl, delay, sample_body, sql_hint)
         if create_result.error:
             return create_result
 
@@ -358,6 +365,8 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                     Each entry has: method (str), path (str), name (str),
                     queryParameters (list, optional), headers (list, optional), content (str base64, optional).
                 sampleBody (str): Optional. Fallback only — prefer setting sampleBody on the body matcher itself.
+                sqlHint (str): Optional. SQLite query that selects the service data rows for this transaction.
+                    BlazeMeter generates a default from the request; set this to customize it.
             Returns:
                 info: ["transaction_id=<id>", "tests_passed=<n>", "tests_total=<n>"]
                 result: List of SandboxResponse per test case.
@@ -393,6 +402,8 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                 workspace_id (int): Mandatory. The id of the workspace.
                 delay (int): Optional. Response delay in milliseconds.
                 sampleBody (str): Optional. Fallback only — prefer setting sampleBody on the body matcher itself.
+                sqlHint (str): Optional. SQLite query that selects the service data rows for this transaction.
+                    BlazeMeter generates a default from the request; set this to customize it.
         - update: Updates a certain transaction.
             Important: before using template in transaction definition validate it and
             convert it first using validate_template and convert_template actions.
@@ -404,6 +415,9 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                 workspace_id (int): Mandatory. The id of the workspace.
                 delay (int): Optional. Response delay in milliseconds.
                 sampleBody (str): Optional. Fallback only — prefer setting sampleBody on the body matcher itself.
+                sqlHint (str): Optional. SQLite query that selects the service data rows for this transaction.
+                    BlazeMeter generates a default from the request; set this to customize it.
+                    update replaces the transaction, so pass the current sqlHint again to keep it.
         - assign_keystore: Assign keystore asset to the transaction.
             args(dict):
                 id (int): Mandatory. The id of the transaction.
@@ -441,11 +455,13 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                     return await transaction_manager.create(
                         args["name"], args["workspace_id"], args["serviceId"],
                         args["dsl"], args.get("delay", None), args.get("sampleBody"),
+                        args.get("sqlHint"),
                     )
                 case "update":
                     return await transaction_manager.update(
                         args["id"], args["name"], args["workspace_id"],
                         args["dsl"], args.get("delay", None), args.get("sampleBody"),
+                        args.get("sqlHint"),
                     )
                 case "validate_template":
                     return await transaction_manager.validate_template(args["template"])
@@ -455,7 +471,7 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                     return await transaction_manager.create_and_test(
                         args["name"], args["workspace_id"], args["serviceId"],
                         args["dsl"], args.get("delay", None), args["test_cases"],
-                        args.get("sampleBody"),
+                        args.get("sampleBody"), args.get("sqlHint"),
                     )
                 case "assign_keystore":
                     return await transaction_manager.assign_asset(

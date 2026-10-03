@@ -354,7 +354,7 @@ class TestDataManager:
         data_model_content = build_data_model_content(service_name, service_id, entities)
         data_model_content["id"] = asset_id
 
-        return await tdm_api_request(
+        result = await tdm_api_request(
             self.token, "PUT",
             f"{WORKSPACES_ENDPOINT}/{workspace_id}/{TDM_ASSETS_ENDPOINT}/{asset_id}",
             result_formatter=format_tdm_assets,
@@ -367,6 +367,15 @@ class TestDataManager:
                 },
             },
         )
+        if result.error:
+            return result
+
+        if global_variables is not None:
+            gv_result = await self.set_global_variables(workspace_id, service_id, global_variables)
+            if gv_result.error:
+                return BaseResult(error=f"Data model updated, but global variables were not: {gv_result.error}")
+
+        return result
 
     async def update_from_csv(
         self,
@@ -429,7 +438,68 @@ class TestDataManager:
             if upload_result.error:
                 return upload_result
 
+        if global_variables is not None:
+            gv_result = await self.set_global_variables(workspace_id, service_id, global_variables)
+            if gv_result.error:
+                return BaseResult(error=f"Data model updated, but global variables were not: {gv_result.error}")
+
         return result
+
+    async def _fetch_global_entity_asset(self, workspace_id: int, service_id: int, with_data: bool) -> BaseResult:
+        asset_name = f"global-entity-{service_id}"
+        fetch_result = await tdm_api_request(
+            self.token, "GET",
+            f"{WORKSPACES_ENDPOINT}/{workspace_id}/{TDM_ASSETS_ENDPOINT}",
+            params=[
+                ("q", "type=global-entity"),
+                ("q", f"name={asset_name}"),
+                ("withData", "true" if with_data else "false"),
+            ],
+        )
+        if fetch_result.error:
+            return fetch_result
+        # The name filter is not guaranteed to be exact, and callers overwrite the asset, so match it here
+        matches = [a for a in fetch_result.result or [] if a.get("name") == asset_name]
+        if not matches:
+            return BaseResult(error=f"No global-entity asset found for service_id={service_id}. It is created together with the dataset by create_from_schema or create_from_csv.")
+        return BaseResult(result=matches)
+
+    async def read_global_variables(self, workspace_id: int, service_id: int) -> BaseResult:
+        fetch_result = await self._fetch_global_entity_asset(workspace_id, service_id, with_data=True)
+        if fetch_result.error:
+            return fetch_result
+
+        # content is None when the asset holds an empty map
+        asset = format_tdm_assets(fetch_result.result)[0]
+        return BaseResult(result=[asset.content or {}])
+
+    async def set_global_variables(
+        self,
+        workspace_id: int,
+        service_id: int,
+        global_variables: Dict[str, str],
+    ) -> BaseResult:
+        fetch_result = await self._fetch_global_entity_asset(workspace_id, service_id, with_data=False)
+        if fetch_result.error:
+            return fetch_result
+
+        raw_asset = fetch_result.result[0]
+        asset_id = raw_asset["id"]
+
+        # Full replacement of the map; same data shape as the global-entity asset created at step 7/7
+        return await tdm_api_request(
+            self.token, "PUT",
+            f"{WORKSPACES_ENDPOINT}/{workspace_id}/{TDM_ASSETS_ENDPOINT}/{asset_id}",
+            result_formatter=format_tdm_assets,
+            json={
+                **raw_asset,
+                "data": {
+                    "fileName": "global-entity.json",
+                    "contentType": "application/json",
+                    "content": global_variables,
+                },
+            },
+        )
 
 
 def register(mcp, token: Optional[BzmToken]) -> None:
@@ -463,6 +533,16 @@ def register(mcp, token: Optional[BzmToken]) -> None:
           - Variables not defined in the dataset are treated as literal strings — the request must contain
             the exact text "${varName}" to match.
         Note: Handlebars ({{...}}) is separate — it is for dynamic response templating, not dataset substitution.
+
+        Global variables and stateful virtual services:
+          - Global variables are the service's global-scope parameters: a flat str→str map read in transactions
+            as ${name} and modified at runtime by STATE_UPDATE "Update value" / "Increment value" actions
+            (virtual_services_action). Values are strings, e.g. {"order_counter": "0"} for a counter.
+          - STATE_UPDATE "Store object" / "Update object" / "Delete object" actions target the entities defined
+            in this dataset.
+          - Each deployed virtual service gets a fresh copy of the data and global variables when its data is
+            generated, and keeps its (possibly modified) copy across stop/start. After changing them, run
+            virtual_services_state reset on the running virtual service to regenerate its data.
 
         Actions:
         - create_from_schema: Create a dataset by defining entities with field names and generator
@@ -508,7 +588,8 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                 service_id (int): Mandatory.
                 service_name (str): Mandatory.
                 entities (list): Mandatory. Full new entity list (same format as create_from_schema).
-                global_variables (dict, optional): flat str→str map of global variables.
+                global_variables (dict, optional): flat str→str map of global variables. When given, replaces
+                    the whole map (see set_global_variables).
 
         - update_from_csv: Update an existing CSV-based data-model from a local CSV file. Use this
             when the dataset was created with create_from_csv. Rebuilds the entity with valueOfCSV
@@ -525,7 +606,22 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                     Each entry: {name: str (entity field name), csv_column: str (CSV column name)}.
                     Example: [{"name": "account_name2", "csv_column": "account_name"}]
                 upload_csv (bool, default=false): set true to re-upload the CSV file content.
-                global_variables (dict, optional): flat str→str map of global variables.
+                global_variables (dict, optional): flat str→str map of global variables. When given, replaces
+                    the whole map (see set_global_variables).
+
+        - read_global_variables: Read a service's global variables (its global-entity asset) as a flat
+            str→str map.
+            args(dict):
+                workspace_id (int): Mandatory.
+                service_id (int): Mandatory.
+
+        - set_global_variables: Set a service's global variables. This is a FULL replacement of the map:
+            variables left out are removed. To change one value, read_global_variables first and send the
+            merged map.
+            args(dict):
+                workspace_id (int): Mandatory.
+                service_id (int): Mandatory.
+                global_variables (dict): Mandatory. flat str→str map, e.g. {"order_counter": "0"}.
 
         TdmAsset Schema:
         """ + str(TdmAsset.model_json_schema()),
@@ -581,6 +677,17 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                         args.get("field_mappings"),
                         args.get("upload_csv", False),
                         args.get("global_variables"),
+                    )
+                case "read_global_variables":
+                    return await manager.read_global_variables(
+                        args["workspace_id"],
+                        args["service_id"],
+                    )
+                case "set_global_variables":
+                    return await manager.set_global_variables(
+                        args["workspace_id"],
+                        args["service_id"],
+                        args["global_variables"],
                     )
                 case _:
                     return BaseResult(error=f"Action {action} not found in test_data manager tool")

@@ -1,0 +1,40 @@
+[
+  {
+    "id": 501,
+    "name": "create order",
+    "description": "Stores a new order",
+    "type": "HTTP",
+    "dsl": {
+      "type": "HTTP",
+      "requestDsl": {
+        "method": "POST",
+        "url": {"key": "url", "matcherName": "equals_url", "matchingValue": "/orders"}
+      },
+      "responseDsl": {"status": 201}
+    },
+    "actionsData": [
+      {
+        "id": 9001,
+        "name": "store order",
+        "actionType": "STATE_UPDATE",
+        "definition": {"opaqueKey": "opaque value", "opaqueNested": {"items": [1, 2]}},
+        "conditions": [],
+        "priority": 1
+      }
+    ]
+  },
+  {
+    "id": 502,
+    "name": "get order",
+    "type": "HTTP",
+    "dsl": {
+      "type": "HTTP",
+      "requestDsl": {
+        "method": "GET",
+        "url": {"key": "url", "matcherName": "matches_url", "matchingValue": "/orders/.*"}
+      },
+      "responseDsl": {"status": 200}
+    },
+    "sqlHint": "select * from orders where id = ${request.path.1}"
+  }
+]
