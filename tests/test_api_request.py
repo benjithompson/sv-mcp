@@ -45,6 +45,15 @@ async def test_bare_json_string_body_is_returned_as_result_not_crash():
     assert result.total == 1
 
 
+async def test_bare_json_array_body_is_formatted_like_an_envelope_result():
+    response = httpx.Response(200, json=[{"id": 1}, {"id": 2}])
+    with patch("sv_mcp.tools.utils.httpx.AsyncClient", _client_returning(response)):
+        result = await vs_api_request(
+            _token(), "GET", "/things", result_formatter=lambda items, params: [i["id"] for i in items]
+        )
+    assert result.result == [1, 2]
+
+
 async def test_empty_body_returns_empty_result():
     response = httpx.Response(204)
     with patch("sv_mcp.tools.utils.httpx.AsyncClient", _client_returning(response)):

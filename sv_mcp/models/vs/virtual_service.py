@@ -99,14 +99,15 @@ class VirtualService(BaseModel):
         None,
         description=(
             "Test data implementation. 'NO_SQL' (default) or 'SQL'. "
-            "SQL mode runs initialSqlScript and enables ${sql '...'} templates and transaction sqlHint. "
+            "SQL mode adds initialSqlScript, a bootstrap script run over the service data tables. "
             "Set it with virtual_services_state set_data_settings."
         )
     )
     initialSqlScript: Optional[str] = Field(
         None,
         description=(
-            "SQL bootstrap script for SQL mode, e.g. CREATE VIEW statements over the service data. "
+            "SQL bootstrap script for SQL mode, e.g. CREATE VIEW statements joining several data entities; "
+            "transactions can then query the views in sqlHint or ${sql '...'}. "
             "Set it with virtual_services_state set_data_settings."
         )
     )

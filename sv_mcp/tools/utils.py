@@ -55,13 +55,13 @@ async def _api_request(base_url: str,
             if resp.status_code == 204 or not resp.content:
                 return BaseResult()
             # Some endpoints (e.g. DELETE on transaction actions) are declared as returning a bare
-            # string rather than the usual {"result": ...} envelope — surface it instead of crashing.
+            # string rather than the usual {"result": ...} envelope — treat the body as the result.
             try:
                 data = resp.json()
             except ValueError:
                 return BaseResult(result=[resp.text], total=1)
             if not isinstance(data, dict):
-                return BaseResult(result=[data], total=1)
+                data = {"result": data}
 
             result = data.get("result", [])
             default_total = 0

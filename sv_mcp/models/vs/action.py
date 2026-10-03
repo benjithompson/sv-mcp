@@ -1,10 +1,13 @@
-from typing import Optional, List, Union, Dict, Any
+from typing import Optional, List, Union, Dict, Any, Annotated
 
 from pydantic import BaseModel, Field
 
 from sv_mcp.models.vs.action_condition import ActionCondition
 from sv_mcp.models.vs.assigned_asset import AssignedAsset
 from sv_mcp.models.vs.web_action import WebAction
+
+# Conditions echoed by the API that don't fit ActionCondition are kept as raw dicts rather than failing the parse
+ActionConditionItem = Annotated[Union[ActionCondition, Dict[str, Any]], Field(union_mode="left_to_right")]
 
 
 class Action(BaseModel):
@@ -18,9 +21,12 @@ class Action(BaseModel):
     )
     transactionId: Optional[int] = Field(None, description="Identifier of the transaction the action belongs to")
     priority: Optional[int] = Field(None, description="Execution order of the action within its transaction")
-    conditions: Optional[List[ActionCondition]] = Field(
+    conditions: Optional[List[ActionConditionItem]] = Field(
         [],
-        description="Conditions gating the action; all of them must be true for the action to run"
+        description=(
+            "Conditions gating the action; all of them must be true for the action to run. "
+            "A condition that does not fit ActionCondition is returned as a raw dict"
+        )
     )
     assets: Optional[List[AssignedAsset]] = Field(None, description="List of assets")
 

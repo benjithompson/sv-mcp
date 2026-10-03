@@ -91,3 +91,24 @@ def test_format_transaction_summaries_happy_path():
 
 def test_format_transaction_summaries_empty_list():
     assert format_transaction_summaries([]) == []
+
+
+def test_format_blueprint_transactions_decodes_http_body_matchers():
+    """Body matchers come back as plain text, like virtual_services_http_transaction read, so the DSL can be
+    passed to create without being base64-encoded twice."""
+    raw = [{
+        "id": 1, "name": "t", "type": "HTTP",
+        "dsl": {"requestDsl": {"body": [
+            {"key": "body", "matcherName": "equals_json", "matchingValue": "eyJpZCI6IDF9", "sampleBody": "eyJpZCI6IDF9"},
+        ]}},
+    }]
+    matcher = format_blueprint_transactions(raw)[0].dsl["requestDsl"]["body"][0]
+    assert matcher["matchingValue"] == '{"id": 1}'
+    assert matcher["sampleBody"] == '{"id": 1}'
+
+
+def test_format_blueprint_transactions_leaves_messaging_dsl_untouched():
+    dsl = {"requestDsl": {"body": [{"key": "body", "matcherName": "equals", "matchingValue": "eyJpZCI6IDF9"}]}}
+    raw = [{"id": 1, "name": "t", "type": "MESSAGING", "dsl": dsl}]
+    matcher = format_blueprint_transactions(raw)[0].dsl["requestDsl"]["body"][0]
+    assert matcher["matchingValue"] == "eyJpZCI6IDF9"

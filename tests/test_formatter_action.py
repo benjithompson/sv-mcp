@@ -64,6 +64,14 @@ def test_format_actions_conditions_parsed():
     assert conditions[0].matcher.matchingValue == "42"
 
 
+def test_format_actions_unexpected_condition_kept_as_raw_dict():
+    """A condition that doesn't fit ActionCondition must not make read/list fail for the whole transaction."""
+    raw = load_fixture("action")
+    raw[0]["conditions"] = [{"matcher": {"key": "${request.headers.x}", "matcherName": "absent", "matchingValue": None}}]
+    conditions = format_actions(raw)[0].conditions
+    assert conditions == raw[0]["conditions"]
+
+
 def test_format_actions_missing_conditions_default_to_empty():
     result = format_actions(load_fixture("action"))
     assert result[0].conditions == []

@@ -1,7 +1,6 @@
 from typing import (List, Any, Optional)
 
 from sv_mcp.models.vs.action import Action
-from sv_mcp.models.vs.action_condition import ActionCondition
 from sv_mcp.models.vs.assigned_asset import AssignedAsset
 from sv_mcp.models.vs.web_action import WebAction
 
@@ -21,7 +20,7 @@ def format_actions(actions: List[Any], params: Optional[dict] = None) -> List[Ac
                 definition=definition,
                 transactionId=action.get("transactionId"),
                 priority=action.get("priority"),
-                conditions=[ActionCondition(**c) for c in action.get("conditions") or []],
+                conditions=action.get("conditions") or [],
                 assets=[AssignedAsset(**d) for d in action.get("assets") or []],
             )
         )

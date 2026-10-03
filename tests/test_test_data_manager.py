@@ -249,7 +249,7 @@ async def test_update_returns_global_variables_error(manager):
         result = await manager.update(
             1, 123, "my-service", ENTITIES, global_variables={"order_counter": "0"}
         )
-    assert result.error == "No global-entity asset found"
+    assert result.error == "Data model updated, but global variables were not: No global-entity asset found"
 
 
 async def test_update_skips_global_variables_when_data_model_put_fails(manager):
@@ -290,4 +290,29 @@ async def test_update_from_csv_returns_global_variables_error(manager, csv_file)
         result = await manager.update_from_csv(
             1, 123, "my-service", csv_file, global_variables={"order_counter": "0"}
         )
-    assert result.error == "No global-entity asset found"
+    assert result.error == "Data model updated, but global variables were not: No global-entity asset found"
+
+
+async def test_update_from_csv_with_upload_sets_global_variables_after_upload(manager, csv_file):
+    manager.set_global_variables = AsyncMock(return_value=BaseResult(result=[]))
+    manager._upload_csv_file = AsyncMock(return_value=BaseResult(result=[]))
+    with patch("sv_mcp.tools.vs.test_data_manager.tdm_api_request") as mock_req:
+        mock_req.side_effect = [BaseResult(result=load_fixture("tdm_asset")), BaseResult(result=[])]
+        result = await manager.update_from_csv(
+            1, 123, "my-service", csv_file, upload_csv=True, global_variables={"order_counter": "0"}
+        )
+    manager._upload_csv_file.assert_awaited_once()
+    manager.set_global_variables.assert_awaited_once_with(1, 123, {"order_counter": "0"})
+    assert result.error is None
+
+
+async def test_global_variables_ignore_assets_whose_name_only_partially_matches(manager):
+    """set_global_variables replaces the whole map, so it must never write another service's asset."""
+    other_service_asset = {**GLOBAL_ENTITY_ASSET, "id": "ge-other", "name": "global-entity-1234"}
+    with patch("sv_mcp.tools.vs.test_data_manager.tdm_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=[other_service_asset])
+        result = await manager.set_global_variables(
+            workspace_id=1, service_id=123, global_variables={"order_counter": "0"}
+        )
+    assert mock_req.call_count == 1
+    assert "No global-entity asset found for service_id=123" in result.error

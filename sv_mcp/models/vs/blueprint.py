@@ -15,8 +15,8 @@ class BlueprintTransaction(BaseModel):
     sqlHint: Optional[str] = Field(
         None,
         description=(
-            "SQLite query used to select service data rows for this transaction when the virtual service "
-            "uses SQL data mode, e.g. select * from users where email = '${request.query.email}'"
+            "SQLite query that selects the service data rows for this transaction, "
+            "e.g. select * from users where email = '${request.query.email}'"
         )
     )
     actionsData: Optional[List[Dict[str, Any]]] = Field(

@@ -76,7 +76,7 @@ def register(mcp, token: Optional[BzmToken]) -> None:
           - The initial state is seeded from virtual_services_test_data: entities from the data model, global
             variables from global_variables or set_global_variables.
           - Transactions read the state with ${#each (blazeData 'entity' 'where ...')}, ${blazeDataSize 'entity'},
-            ${globalName}, or ${sql '...'} in SQL mode.
+            ${globalName}, or ${sql '...'}.
 
         Inspect the current state:
           1. export_data. The result contains a tracking id.
@@ -103,15 +103,15 @@ def register(mcp, token: Optional[BzmToken]) -> None:
         - reset: Reset the state of a running virtual service. Reconfigures the virtual service and regenerates its
             data from the service's data model and global variables. All changes made by STATE_UPDATE actions are lost.
             This is virtual_services_virtual_service configure with keepBlazeData=false, so it also reloads the
-            assigned transactions.
+            assigned transactions. Works for HTTP and messaging virtual services.
             Action result contains tracking id. Poll virtual_services_tracking read until status is 'FINISHED'.
             args(dict):
                 workspace_id (int): Mandatory. The id of the workspace the virtual service belongs to.
                 id (int): Mandatory. The id of the virtual service to reset.
         - set_data_settings: Select the test data implementation of a virtual service.
-            NO_SQL is the default. SQL makes the service data queryable as SQL tables, runs initialSqlScript as a
-            bootstrap script (e.g. CREATE VIEW statements), and enables ${sql '...'} templates and the transaction
-            sqlHint (virtual_services_http_transaction).
+            NO_SQL is the default. SQL adds initialSqlScript, a bootstrap script run over the service data tables,
+            e.g. CREATE VIEW statements joining several data entities. Transactions can then query the views in
+            their sqlHint (virtual_services_http_transaction) or with ${sql '...'}.
             Takes effect on the next deploy or configure (virtual_services_virtual_service).
             Result is the updated virtual service.
             args(dict):

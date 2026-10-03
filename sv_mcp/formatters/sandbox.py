@@ -1,6 +1,7 @@
 import base64
 from typing import List, Any, Optional
 
+from sv_mcp.models.vs.action_mock import ActionMock
 from sv_mcp.models.vs.http_header import HttpHeader
 from sv_mcp.models.vs.matching_log_entry import MatchingLogEntry
 from sv_mcp.models.vs.sandbox import Sandbox
@@ -37,6 +38,7 @@ def format_sandbox(responses: List[Any], params: Optional[dict] = None) -> List[
                 serviceId=response.get("serviceId"),
                 userId=response.get("userId"),
                 transactionId=response.get("transactionId"),
+                actionMocks=[ActionMock(**m) for m in response.get("actionMocks") or []],
             )
         )
     return formatted_sandbox

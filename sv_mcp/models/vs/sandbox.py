@@ -1,6 +1,8 @@
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field
+
+from sv_mcp.models.vs.action_mock import ActionMock
 
 
 class Sandbox(BaseModel):
@@ -15,6 +17,10 @@ class Sandbox(BaseModel):
     transactionId: Optional[int] = Field(
         None,
         description="Transaction id"
+    )
+    actionMocks: Optional[List[ActionMock]] = Field(
+        [],
+        description="Processing action responses currently mocked in the sandbox (see set_action_mocks)"
     )
 
     class Config:

@@ -373,7 +373,7 @@ class TestDataManager:
         if global_variables is not None:
             gv_result = await self.set_global_variables(workspace_id, service_id, global_variables)
             if gv_result.error:
-                return gv_result
+                return BaseResult(error=f"Data model updated, but global variables were not: {gv_result.error}")
 
         return result
 
@@ -441,7 +441,7 @@ class TestDataManager:
         if global_variables is not None:
             gv_result = await self.set_global_variables(workspace_id, service_id, global_variables)
             if gv_result.error:
-                return gv_result
+                return BaseResult(error=f"Data model updated, but global variables were not: {gv_result.error}")
 
         return result
 
@@ -458,9 +458,11 @@ class TestDataManager:
         )
         if fetch_result.error:
             return fetch_result
-        if not fetch_result.result:
-            return BaseResult(error=f"No global-entity asset found for service_id={service_id}. Use create_from_schema or create_from_csv with global_variables to create it first.")
-        return fetch_result
+        # The name filter is not guaranteed to be exact, and callers overwrite the asset, so match it here
+        matches = [a for a in fetch_result.result or [] if a.get("name") == asset_name]
+        if not matches:
+            return BaseResult(error=f"No global-entity asset found for service_id={service_id}. It is created together with the dataset by create_from_schema or create_from_csv.")
+        return BaseResult(result=matches)
 
     async def read_global_variables(self, workspace_id: int, service_id: int) -> BaseResult:
         fetch_result = await self._fetch_global_entity_asset(workspace_id, service_id, with_data=True)
@@ -539,8 +541,8 @@ def register(mcp, token: Optional[BzmToken]) -> None:
           - STATE_UPDATE "Store object" / "Update object" / "Delete object" actions target the entities defined
             in this dataset.
           - Each deployed virtual service gets a fresh copy of the data and global variables when its data is
-            generated. After changing them, run virtual_services_state reset on a running virtual service, or
-            redeploy it.
+            generated, and keeps its (possibly modified) copy across stop/start. After changing them, run
+            virtual_services_state reset on the running virtual service to regenerate its data.
 
         Actions:
         - create_from_schema: Create a dataset by defining entities with field names and generator

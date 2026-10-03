@@ -118,7 +118,7 @@ The BlazeMeter MCP Server provides comprehensive access to BlazeMeter's API thro
 | Assign keystore               | Assign keystore asset to an existing transaction      |
 | Assign certificate            | Assign certificate asset to an existing transaction   |
 
-Create and update accept an optional `sqlHint`: the SQLite query that selects service data rows for the transaction when the virtual service uses SQL data mode.
+Create and update accept an optional `sqlHint`: the SQLite query that selects the service data rows for the transaction (BlazeMeter generates a default from the request).
 
 ---
 
@@ -328,7 +328,7 @@ Every create action accepts optional `conditions`; the action only runs when all
 | Read data         | Reads the virtual service's service data: download links, global variables, and data settings        |
 | Export data       | Exports the running virtual service's current (state-modified) dataset; returns a tracking id        |
 | Reset             | Reconfigures the running virtual service and regenerates its service data, discarding state changes |
-| Set data settings | Switches between the default NO_SQL data mode and SQL mode with an optional bootstrap script         |
+| Set data settings | Switches between the default NO_SQL data mode and SQL mode, which adds a bootstrap script (e.g. views) |
 
 ---
 

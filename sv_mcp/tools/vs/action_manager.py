@@ -40,7 +40,7 @@ class ActionManager:
         )
 
     async def create_http_call(self, action_name: str, workspace_id: int, transaction_id: int,
-                               action: WebAction, conditions: Optional[list] = None) -> BaseResult:
+                               action: WebAction, conditions: Optional[List[dict]] = None) -> BaseResult:
         action_dict = action.model_dump() if isinstance(action, WebAction) else action
         action_body = {
             "name": action_name,
@@ -58,7 +58,7 @@ class ActionManager:
         )
 
     async def create_web_hook(self, action_name: str, workspace_id: int, transaction_id: int,
-                              action: WebAction, conditions: Optional[list] = None) -> BaseResult:
+                              action: WebAction, conditions: Optional[List[dict]] = None) -> BaseResult:
         action_dict = action.model_dump() if isinstance(action, WebAction) else action
         action_body = {
             "name": action_name,
@@ -76,7 +76,7 @@ class ActionManager:
         )
 
     async def create_state_update(self, action_name: str, workspace_id: int, transaction_id: int,
-                                  definition: dict, conditions: Optional[list] = None) -> BaseResult:
+                                  definition: dict, conditions: Optional[List[dict]] = None) -> BaseResult:
         action_body = {
             "name": action_name,
             "actionType": "STATE_UPDATE",
@@ -94,7 +94,7 @@ class ActionManager:
 
     async def update(self, workspace_id: int, transaction_id: int, action_id: int,
                      action_name: Optional[str] = None, definition: Optional[Union[WebAction, dict]] = None,
-                     conditions: Optional[list] = None) -> BaseResult:
+                     conditions: Optional[List[dict]] = None) -> BaseResult:
         action_body: Dict[str, Any] = {"id": action_id}
         if action_name is not None:
             action_body["name"] = action_name
@@ -239,7 +239,7 @@ def register(mcp, token: Optional[BzmToken]) -> None:
               target entity or global variable. Data parameter names contain only letters, digits and
               underscores, and cannot start with a digit.
             - Read the state back in a transaction response with ${#each (blazeData 'entity' 'where ...')},
-              ${blazeDataSize 'entity'}, ${sql '...'} (SQL data mode) or ${globalName}.
+              ${blazeDataSize 'entity'}, ${sql '...'} or ${globalName}.
             - IMPORTANT — the definition shape is not published. Before creating a STATE_UPDATE action, copy
               the exact field names from a real example:
                 * an existing STATE_UPDATE action (list or read here), or

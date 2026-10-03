@@ -12,6 +12,19 @@ def test_format_sandbox_happy_path():
     assert s.transactionId == 6485927
 
 
+def test_format_sandbox_action_mocks_parsed():
+    raw = [{"transactionId": 1, "actionMocks": [
+        {"actionName": "fetch rate", "actionId": 7, "statusCode": 200,
+         "headers": [{"name": "Content-Type", "value": "application/json"}], "body": "{\"rate\": 3}"},
+    ]}]
+    mocks = format_sandbox(raw)[0].actionMocks
+    assert len(mocks) == 1
+    assert mocks[0].actionId == 7
+    assert mocks[0].statusCode == 200
+    assert mocks[0].headers[0].name == "Content-Type"
+    assert mocks[0].body == '{"rate": 3}'
+
+
 def test_format_sandbox_empty_list():
     assert format_sandbox([]) == []
 

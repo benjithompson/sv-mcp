@@ -20,16 +20,21 @@ def _decode_body_matcher_value(value: Optional[str]) -> Optional[str]:
         return value
 
 
+def decode_body_matchers(dsl_dict: dict) -> None:
+    """Decode the base64 matchingValue/sampleBody of an HTTP DSL's request body matchers, in place."""
+    request = dsl_dict.get("requestDsl") or {}
+    for body_matcher in request.get("body") or []:
+        if "matchingValue" in body_matcher:
+            body_matcher["matchingValue"] = _decode_body_matcher_value(body_matcher.get("matchingValue"))
+        if "sampleBody" in body_matcher:
+            body_matcher["sampleBody"] = _decode_body_matcher_value(body_matcher.get("sampleBody"))
+
+
 def format_http_transactions(transactions: List[Any], params: Optional[dict] = None) -> List[HttpTransaction]:
     formatted_transactions = []
     for transaction in transactions:
         dsl_dict = transaction.get("dsl") or {}
-        request = dsl_dict.get("requestDsl") or {}
-        for body_matcher in request.get("body") or []:
-            if "matchingValue" in body_matcher:
-                body_matcher["matchingValue"] = _decode_body_matcher_value(body_matcher.get("matchingValue"))
-            if "sampleBody" in body_matcher:
-                body_matcher["sampleBody"] = _decode_body_matcher_value(body_matcher.get("sampleBody"))
+        decode_body_matchers(dsl_dict)
         formatted_transactions.append(
             HttpTransaction(
                 id=transaction.get("id"),

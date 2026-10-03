@@ -123,6 +123,13 @@ async def test_update_sends_provided_fields(manager):
     }
 
 
+async def test_update_sends_empty_conditions_to_clear_them(manager):
+    with patch("sv_mcp.tools.vs.action_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=[])
+        await manager.update(1, 2, 3, conditions=[])
+    assert mock_req.call_args.kwargs["json"] == {"id": 3, "conditions": []}
+
+
 async def test_update_dumps_web_action_definition(manager):
     with patch("sv_mcp.tools.vs.action_manager.vs_api_request") as mock_req:
         mock_req.return_value = BaseResult(result=[])

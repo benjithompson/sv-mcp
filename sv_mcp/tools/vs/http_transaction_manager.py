@@ -365,8 +365,8 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                     Each entry has: method (str), path (str), name (str),
                     queryParameters (list, optional), headers (list, optional), content (str base64, optional).
                 sampleBody (str): Optional. Fallback only — prefer setting sampleBody on the body matcher itself.
-                sqlHint (str): Optional. SQLite query that selects the service data rows for this transaction
-                    when the virtual service uses SQL data mode (see virtual_services_state set_data_settings).
+                sqlHint (str): Optional. SQLite query that selects the service data rows for this transaction.
+                    BlazeMeter generates a default from the request; set this to customize it.
             Returns:
                 info: ["transaction_id=<id>", "tests_passed=<n>", "tests_total=<n>"]
                 result: List of SandboxResponse per test case.
@@ -402,8 +402,8 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                 workspace_id (int): Mandatory. The id of the workspace.
                 delay (int): Optional. Response delay in milliseconds.
                 sampleBody (str): Optional. Fallback only — prefer setting sampleBody on the body matcher itself.
-                sqlHint (str): Optional. SQLite query that selects the service data rows for this transaction
-                    when the virtual service uses SQL data mode (see virtual_services_state set_data_settings).
+                sqlHint (str): Optional. SQLite query that selects the service data rows for this transaction.
+                    BlazeMeter generates a default from the request; set this to customize it.
         - update: Updates a certain transaction.
             Important: before using template in transaction definition validate it and
             convert it first using validate_template and convert_template actions.
@@ -415,8 +415,9 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                 workspace_id (int): Mandatory. The id of the workspace.
                 delay (int): Optional. Response delay in milliseconds.
                 sampleBody (str): Optional. Fallback only — prefer setting sampleBody on the body matcher itself.
-                sqlHint (str): Optional. SQLite query that selects the service data rows for this transaction
-                    when the virtual service uses SQL data mode (see virtual_services_state set_data_settings).
+                sqlHint (str): Optional. SQLite query that selects the service data rows for this transaction.
+                    BlazeMeter generates a default from the request; set this to customize it.
+                    update replaces the transaction, so pass the current sqlHint again to keep it.
         - assign_keystore: Assign keystore asset to the transaction.
             args(dict):
                 id (int): Mandatory. The id of the transaction.
