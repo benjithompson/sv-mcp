@@ -26,6 +26,60 @@ async def test_init_info_mentions_processing_actions(manager):
     assert "Processing actions" in result.info[0]
 
 
+async def test_init_stores_transaction_in_sandbox_configuration(manager):
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.side_effect = [
+            BaseResult(result=format_sandbox([{"userId": 9, "serviceId": 5, "transactionId": 2}])),
+            BaseResult(result=format_sandbox([{"userId": 9, "serviceId": 5, "transactionId": 2}])),
+        ]
+        result = await manager.init(workspace_id=1, transaction_id=2)
+    get_call, patch_call = mock_req.call_args_list
+    assert get_call.args[1] == "GET"
+    assert patch_call.args[1] == "PATCH"
+    assert patch_call.args[2] == "/workspaces/1/sandbox"
+    assert patch_call.kwargs["json"] == {"serviceId": 5, "transactionId": 2}
+    assert result.result[0].transactionId == 2
+    assert "test_request" in result.info[0]
+
+
+async def test_init_returns_patch_error(manager):
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.side_effect = [
+            BaseResult(result=format_sandbox([{"serviceId": 5, "transactionId": 2}])),
+            BaseResult(error="Not found: transaction"),
+        ]
+        result = await manager.init(workspace_id=1, transaction_id=2)
+    assert result.error == "Not found: transaction"
+
+
+async def test_init_returns_get_error_without_patch(manager):
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(error="Not found: transaction")
+        result = await manager.init(workspace_id=1, transaction_id=2)
+    assert mock_req.call_count == 1
+    assert result.error == "Not found: transaction"
+
+
+async def test_test_request_sends_body(manager):
+    request = {"method": "POST", "path": "/orders", "name": "svc", "body": "eyJpZCI6MX0="}
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=[])
+        await manager.test_request(request, workspace_id=1)
+    assert mock_req.call_args.args[2] == "/workspaces/1/sandbox/test-request"
+    assert mock_req.call_args.kwargs["json"] == {"httpRequest": request}
+
+
+async def test_test_request_maps_legacy_content_to_body(manager):
+    request = {"method": "POST", "path": "/orders", "name": "svc", "content": "eyJpZCI6MX0="}
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=[])
+        await manager.test_request(request, workspace_id=1)
+    sent = mock_req.call_args.kwargs["json"]["httpRequest"]
+    assert sent["body"] == "eyJpZCI6MX0="
+    assert "content" not in sent
+    assert "content" in request
+
+
 async def test_dataset_state_builds_endpoint(manager):
     with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
         mock_req.return_value = BaseResult(result=[])

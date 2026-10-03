@@ -32,13 +32,32 @@ class SandboxManager:
             result_formatter=format_sandbox,
             params=parameters
         )
+        if result.error:
+            return result
+        # The GET loads the transaction only until the sandbox regenerates its service data; the
+        # sandbox then falls back to its stored configuration. PATCH stores this transaction there.
+        service_id = result.result[0].serviceId if result.result else None
+        if service_id is not None:
+            result = await vs_api_request(
+                self.token,
+                "PATCH",
+                f"{WORKSPACES_ENDPOINT}/{workspace_id}/{VS_SANDBOX_ENDPOINT}",
+                result_formatter=format_sandbox,
+                json={"serviceId": service_id, "transactionId": transaction_id}
+            )
+            if result.error:
+                return result
         result.append_info(["Sandbox initialized. You MUST now call 'test_request' action with the HTTP request details to actually run the test. "
                             "Processing actions on the transaction, state updates included, run during 'test_request'."])
         return result
 
     async def test_request(self, request: SandboxRequest, workspace_id: int) -> BaseResult:
+        http_request = request.model_dump() if isinstance(request, SandboxRequest) else dict(request)
+        # The API reads the request body from "body"; earlier versions of this tool documented "content".
+        if "content" in http_request and "body" not in http_request:
+            http_request["body"] = http_request.pop("content")
         sandbox_request = {
-            "httpRequest": request,
+            "httpRequest": http_request,
         }
         return await vs_api_request(
             self.token,
@@ -108,17 +127,22 @@ def register(mcp, token: Optional[BzmToken]) -> None:
         matchers failed and what to fix in the DSL.
         Testing stateful transactions:
           Processing actions on the transaction run during `test_request`. STATE_UPDATE actions change the
-          sandbox's own dataset, which `dataset_state` returns and `reset_dataset` clears.
-          1. Optional: call `reset_dataset` for a clean start.
-          2. `init` the state-changing transaction (e.g. a POST with a STATE_UPDATE action), then `test_request`.
-          3. `dataset_state` should show the stored, updated or deleted row.
-          4. `init` the reading transaction (e.g. a GET that uses blazeData), then `test_request`.
-             The response should contain the stored data.
-          5. If `dataset_state` is empty right after `init`, call `generation_status` until it returns true.
-          6. If a STATE_UPDATE consumes an HTTP call result (${httpcalls.<name>.response.body}), call
+          sandbox's own copy of the service data, which `dataset_state` returns.
+          1. `init` the state-changing transaction (e.g. a POST with a STATE_UPDATE action).
+          2. Call `generation_status` until it returns true. Each `init` regenerates the sandbox data, and
+             template values such as ${globalName} stay unresolved until generation completes.
+          3. `test_request` with the request body base64-encoded in `body`. The response of a transaction that
+             reads the state (e.g. ${blazeDataSize 'entity'} or ${globalName}) shows the change directly.
+          4. `init` the reading transaction (e.g. a GET that uses blazeData), wait for `generation_status`,
+             then `test_request`.
+          5. If a STATE_UPDATE consumes an HTTP call result (${httpcalls.<name>.response.body}), call
              `set_action_mocks` after `init` and before `test_request` so the HTTP_CALL action returns a fixed response.
+          Limits: the sandbox state is not consistent between calls. `dataset_state` can return an older copy
+          of the data for some seconds, and `reset_dataset` does not always clear it. Prefer the response of a
+          state-reading transaction over `dataset_state`. For a final check, deploy the virtual service and use
+          virtual_services_state (export_data, read_data, reset), whose state is consistent.
         Actions:
-        - init: Places transaction into sandbox. Must be called BEFORE test_request.
+        - init: Places transaction into sandbox and stores it as the sandbox's transaction. Must be called BEFORE test_request.
             args(dict): Dictionary with the following required parameters:
                 workspace_id (int): Mandatory. The id of the workspace.
                 transaction_id (int): Mandatory. The id of the transaction to test.

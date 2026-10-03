@@ -18,9 +18,9 @@ class SandboxRequest(BaseModel):
         [],
         description="List of response headers"
     )
-    content: Optional[str] = Field(
+    body: Optional[str] = Field(
         None,
-        description="Base64 encoded body of the response"
+        description="Base64 encoded body of the request"
     )
 
     class Config:
