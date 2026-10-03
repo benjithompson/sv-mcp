@@ -21,10 +21,7 @@ class BlueprintTransaction(BaseModel):
     )
     actionsData: Optional[List[Dict[str, Any]]] = Field(
         [],
-        description=(
-            "Processing actions of the transaction, returned verbatim; STATE_UPDATE entries show "
-            "the exact definition shape to reuse"
-        )
+        description="Processing actions of the transaction, returned verbatim"
     )
 
     class Config:

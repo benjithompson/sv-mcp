@@ -240,10 +240,15 @@ def register(mcp, token: Optional[BzmToken]) -> None:
               underscores, and cannot start with a digit.
             - Read the state back in a transaction response with ${#each (blazeData 'entity' 'where ...')},
               ${blazeDataSize 'entity'}, ${sql '...'} or ${globalName}.
-            - IMPORTANT — the definition shape is not published. Before creating a STATE_UPDATE action, copy
-              the exact field names from a real example:
-                * an existing STATE_UPDATE action (list or read here), or
-                * virtual_services_blueprint list_transactions on the stateful demo blueprint (actionsData).
+            - Definition shape (not published; taken from real actions):
+                {"model": "", "filters": [], "parameters": [{"key": "<name>", "value": "<value>"}],
+                 "objectAction": "UPDATE_VALUE"}
+                * Global variable: model is "", filters is [], objectAction is UPDATE_VALUE (set each key to its
+                  value) or INCREMENT_VALUE (add value as the step). One action can change several variables.
+                  A value can be a template, e.g. "${math dogFood '-' quantity}".
+                * Data entity: model is the entity name. The objectAction names and the filters shape for
+                  Store / Update / Delete object are not confirmed. Before creating one, list or read an existing
+                  data-entity STATE_UPDATE action in the workspace and copy its definition.
               If the API rejects a definition, read its error, fix the definition and retry.
             - Verify in the sandbox, which runs state updates: virtual_services_sandbox init, then test_request,
               then dataset_state.

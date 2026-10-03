@@ -19,7 +19,7 @@ to deploying it to the virtual service. All through natural language interaction
 - **Virtual Service Templates Management**: Create, modify, create from the virtual service, apply to a virtual service.
 - **Test Data Management**: Create, update, and read TDM datasets and global variables for virtual services to drive data-driven transaction matching.
 - **Stateful Virtual Services**: Store, update, and delete service data and maintain global counters with State Update actions; verify state changes in the sandbox, then inspect, export, and reset the live state of a virtual service.
-- **Blueprint Management**: Browse BlazeMeter blueprints (including the stateful demo) and apply them to a service.
+- **Blueprint Management**: Browse BlazeMeter blueprints and apply them to a service.
 
 ---
 
@@ -337,9 +337,9 @@ Every create action accepts optional `conditions`; the action only runs when all
 
 | Action            | What you get                                                                                    |
 |-------------------|-------------------------------------------------------------------------------------------------|
-| List blueprints   | Lists blueprints, filtered by keyword or tags (e.g. `stateful` for the stateful demo)            |
+| List blueprints   | Lists blueprints, filtered by keyword or tags                                                    |
 | Read a blueprint  | Reads blueprint details, optionally including its transactions                                   |
-| List transactions | Lists a blueprint's transactions with their processing actions, including State Update definitions |
+| List transactions | Lists a blueprint's transactions with their DSL and processing actions                           |
 | Apply a blueprint | Creates the blueprint's transactions (and service data) in an existing or new service            |
 
 ---
@@ -350,7 +350,7 @@ A typical end-to-end flow an AI assistant can run with these tools:
 
 1. **Seed the data:** `virtual_services_test_data` → `create_from_schema` with the data entities and `global_variables` (e.g. `{"order_counter": "0"}`).
 2. **Define the transactions:** `virtual_services_http_transaction` → `create` a `POST /orders` transaction and a `GET /orders/{id}` transaction whose response reads the stored rows with `${#each (blazeData 'orders' 'where …')}`.
-3. **Make it stateful:** `virtual_services_action` → `create_state_update` on the POST transaction (store the order, increment `order_counter`). To learn the exact definition format, `read` an existing State Update action or `virtual_services_blueprint` → `list_transactions` on the stateful demo blueprint first.
+3. **Make it stateful:** `virtual_services_action` → `create_state_update` on the POST transaction (store the order, increment `order_counter`). For a global variable the definition is `{"model": "", "filters": [], "parameters": [{"key": "order_counter", "value": "1"}], "objectAction": "INCREMENT_VALUE"}` (or `UPDATE_VALUE` to set it). For a data entity, `read` an existing data-entity State Update action first and copy its definition.
 4. **Verify in the sandbox:** `virtual_services_sandbox` → `init` + `test_request` the POST, check `dataset_state`, then `init` + `test_request` the GET.
 5. **Deploy:** `virtual_services_virtual_service` → `create` + `deploy`.
 6. **Inspect or reset:** `virtual_services_state` → `export_data` (track it) + `read_data`, or `reset`.

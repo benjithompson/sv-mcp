@@ -73,14 +73,8 @@ def register(mcp, token: Optional[BzmToken]) -> None:
         description="""
         Operations on blueprints: BlazeMeter's ready-made service templates, which bundle transactions (with
         their processing actions) and service data.
-        Use this when a user wants to start from a ready-made service, or needs a real example of a processing
-        action, especially a STATE_UPDATE action, before creating one.
+        Use this when a user wants to start from a ready-made service.
         Blueprints are not workspace-scoped; only apply needs a workspace_id.
-
-        Stateful virtual services: list with keyword="stateful" finds BlazeMeter's stateful virtual services
-        demo, whose transactions carry real STATE_UPDATE actions. The STATE_UPDATE definition shape is not
-        published: call list_transactions on that blueprint and copy the exact definition JSON from actionsData
-        before creating your own with virtual_services_action create_state_update.
 
         Actions:
         - list: List blueprints.
@@ -94,8 +88,7 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                 id (int): Mandatory. The id of the blueprint.
                 includeTransactions (bool, default=false): Also return the blueprint's transactions with their actionsData.
         - list_transactions: List the transactions of a blueprint with their DSL and processing actions
-            (actionsData, returned verbatim). This is the way to see real STATE_UPDATE definition JSON before
-            creating your own with virtual_services_action create_state_update.
+            (actionsData, returned verbatim).
             args(dict):
                 id (int): Mandatory. The id of the blueprint.
         - apply: Apply a blueprint. Creates the blueprint's transactions in an existing service (serviceId) or in
