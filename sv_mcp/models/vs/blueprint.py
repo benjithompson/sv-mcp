@@ -16,7 +16,7 @@ class BlueprintTransaction(BaseModel):
         None,
         description=(
             "SQLite query used to select service data rows for this transaction when the virtual service "
-            "uses SQL data mode, e.g. select * from users where id = ${request.path.1}"
+            "uses SQL data mode, e.g. select * from users where email = '${request.query.email}'"
         )
     )
     actionsData: Optional[List[Dict[str, Any]]] = Field(
