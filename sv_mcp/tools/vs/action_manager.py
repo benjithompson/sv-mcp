@@ -7,7 +7,6 @@ from sv_mcp.config.blazemeter import VS_TRANSACTIONS_ENDPOINT, VS_ACTIONS_ENDPOI
 from sv_mcp.config.token import BzmToken
 from sv_mcp.formatters.action import format_actions
 from sv_mcp.models.result import BaseResult
-from sv_mcp.models.vs.action import Action
 from sv_mcp.models.vs.action_condition import ActionCondition
 from sv_mcp.models.vs.web_action import WebAction
 from sv_mcp.telemetry import run_tool
@@ -253,8 +252,6 @@ def register(mcp, token: Optional[BzmToken]) -> None:
               of them must be true.
         WebAction Schema:
         """ + str(WebAction.model_json_schema()) + """
-        Action Schema:
-        """ + str(Action.model_json_schema()) + """
         ActionCondition Schema:
         """ + str(ActionCondition.model_json_schema())
     )
