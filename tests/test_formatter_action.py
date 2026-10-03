@@ -38,3 +38,32 @@ def test_format_actions_none_definition_raises_validation_error_not_type_error()
     raw = [{"id": 1, "name": "x", "actionType": "WEB_ACTION", "definition": None, "assets": []}]
     with pytest.raises(ValidationError):
         format_actions(raw)
+
+
+def test_format_actions_state_update_definition_passed_through():
+    raw = load_fixture("action_state_update")
+    result = format_actions(raw)
+    assert len(result) == 1
+    a = result[0]
+    assert a.actionType == "STATE_UPDATE"
+    assert isinstance(a.definition, dict)
+    assert a.definition == raw[0]["definition"]
+
+
+def test_format_actions_state_update_fields_mapped():
+    a = format_actions(load_fixture("action_state_update"))[0]
+    assert a.transactionId == 77
+    assert a.priority == 2
+
+
+def test_format_actions_conditions_parsed():
+    conditions = format_actions(load_fixture("action_state_update"))[0].conditions
+    assert len(conditions) == 1
+    assert conditions[0].matcher.key == "${request.query.id}"
+    assert conditions[0].matcher.matcherName == "equals"
+    assert conditions[0].matcher.matchingValue == "42"
+
+
+def test_format_actions_missing_conditions_default_to_empty():
+    result = format_actions(load_fixture("action"))
+    assert result[0].conditions == []
