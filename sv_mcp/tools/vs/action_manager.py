@@ -12,6 +12,20 @@ from sv_mcp.models.vs.web_action import WebAction
 from sv_mcp.telemetry import run_tool
 from sv_mcp.tools.utils import vs_api_request, error_result
 
+# The API answers an unknown objectAction with HTTP 500, which error_result reports as a server-side
+# failure, so the value is checked here first.
+_STATE_UPDATE_OBJECT_ACTIONS = ("STORE_OBJECT", "UPDATE_OBJECT", "DELETE_OBJECT", "UPDATE_VALUE", "INCREMENT_VALUE")
+
+
+def _invalid_object_action(definition: Any) -> Optional[BaseResult]:
+    if not isinstance(definition, dict):
+        return BaseResult(error="A STATE_UPDATE definition must be a JSON object.")
+    object_action = definition.get("objectAction")
+    if object_action not in _STATE_UPDATE_OBJECT_ACTIONS:
+        return BaseResult(error=f"Invalid objectAction {object_action!r}. "
+                                f"Use one of: {', '.join(_STATE_UPDATE_OBJECT_ACTIONS)}.")
+    return None
+
 
 class ActionManager:
 
@@ -77,6 +91,9 @@ class ActionManager:
 
     async def create_state_update(self, action_name: str, workspace_id: int, transaction_id: int,
                                   definition: dict, conditions: Optional[List[dict]] = None) -> BaseResult:
+        invalid = _invalid_object_action(definition)
+        if invalid:
+            return invalid
         action_body = {
             "name": action_name,
             "actionType": "STATE_UPDATE",
@@ -95,6 +112,10 @@ class ActionManager:
     async def update(self, workspace_id: int, transaction_id: int, action_id: int,
                      action_name: Optional[str] = None, definition: Optional[Union[WebAction, dict]] = None,
                      conditions: Optional[List[dict]] = None) -> BaseResult:
+        if isinstance(definition, dict) and "objectAction" in definition:
+            invalid = _invalid_object_action(definition)
+            if invalid:
+                return invalid
         action_body: Dict[str, Any] = {"id": action_id}
         if action_name is not None:
             action_body["name"] = action_name
@@ -234,7 +255,6 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                   a filter), Delete object (delete values in the rows matched by a filter).
                   Filter operators: Equals, Less than, Greater than, Starts with, Ends with, In.
                 * Global variable: Update value (set it), Increment value (add a step; a negative step decrements).
-                Analytics shows type names such as UPDATE_OBJECT and UPDATE_VALUE.
             - Prerequisites: the service must have service data (virtual_services_test_data) that defines the
               target entity or global variable. Data parameter names contain only letters, digits and
               underscores, and cannot start with a digit.
@@ -243,15 +263,18 @@ def register(mcp, token: Optional[BzmToken]) -> None:
             - Definition shape (not published; taken from real actions):
                 {"model": "", "filters": [], "parameters": [{"key": "<name>", "value": "<value>"}],
                  "objectAction": "UPDATE_VALUE"}
+                objectAction is one of STORE_OBJECT, UPDATE_OBJECT, DELETE_OBJECT, UPDATE_VALUE, INCREMENT_VALUE.
                 * Global variable: model is "", filters is [], objectAction is UPDATE_VALUE (set each key to its
                   value) or INCREMENT_VALUE (add value as the step). One action can change several variables.
                   A value can be a template, e.g. "${math dogFood '-' quantity}".
-                * Data entity: model is the entity name. The objectAction names and the filters shape for
-                  Store / Update / Delete object are not confirmed. Before creating one, list or read an existing
-                  data-entity STATE_UPDATE action in the workspace and copy its definition.
+                * Store object: model is the entity name, filters is [], and parameters has one entry per field,
+                  e.g. [{"key": "id", "value": "${jsonPath request.body '$.id'}"}]. Each match adds one row.
+                * Update object / Delete object: model is the entity name. The filters entry shape is not confirmed,
+                  and the API accepts any filters content without checking it. Copy the definition of an existing
+                  UPDATE_OBJECT or DELETE_OBJECT action, and verify the result on a deployed virtual service.
               If the API rejects a definition, read its error, fix the definition and retry.
-            - Verify in the sandbox, which runs state updates: virtual_services_sandbox init, then test_request,
-              then dataset_state.
+            - Verify: the sandbox runs state updates (see virtual_services_sandbox, "Testing stateful
+              transactions"). The state of a deployed virtual service is the reliable check.
             - Chaining: actions run in the order set by reorder. An HTTP call result
               ${httpcalls.<name>.response.body} can feed a later state update. conditions gate an action, and all
               of them must be true.

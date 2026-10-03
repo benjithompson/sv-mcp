@@ -9,6 +9,12 @@ from sv_mcp.tools.vs.action_manager import ActionManager
 pytestmark = pytest.mark.asyncio
 
 CONDITIONS = [{"matcher": {"key": "${request.query.id}", "matcherName": "equals", "matchingValue": "42"}}]
+STATE_UPDATE = {
+    "model": "orders",
+    "filters": [],
+    "parameters": [{"key": "id", "value": "${jsonPath request.body '$.id'}"}],
+    "objectAction": "STORE_OBJECT",
+}
 WEB_ACTION = {"urlValue": "https://hooks.example.com/notify", "urlMethod": "POST", "bodyContent": None}
 
 
@@ -79,7 +85,7 @@ async def test_create_web_hook_passes_conditions_when_provided(manager):
 
 
 async def test_create_state_update_builds_request(manager):
-    definition = {"anyKey": "any value", "nested": {"n": 1}}
+    definition = {**STATE_UPDATE, "unknownKey": {"n": 1}}
     with patch("sv_mcp.tools.vs.action_manager.vs_api_request") as mock_req:
         mock_req.return_value = BaseResult(result=[])
         await manager.create_state_update("store order", 1, 2, definition)
@@ -96,8 +102,29 @@ async def test_create_state_update_builds_request(manager):
 async def test_create_state_update_passes_conditions_when_provided(manager):
     with patch("sv_mcp.tools.vs.action_manager.vs_api_request") as mock_req:
         mock_req.return_value = BaseResult(result=[])
-        await manager.create_state_update("store order", 1, 2, {}, conditions=CONDITIONS)
+        await manager.create_state_update("store order", 1, 2, STATE_UPDATE, conditions=CONDITIONS)
     assert mock_req.call_args.kwargs["json"]["conditions"] == CONDITIONS
+
+
+@pytest.mark.parametrize("definition", [
+    {**STATE_UPDATE, "objectAction": "ADD_OBJECT"},
+    {key: value for key, value in STATE_UPDATE.items() if key != "objectAction"},
+    "not a dict",
+])
+async def test_create_state_update_rejects_invalid_object_action_without_calling_api(manager, definition):
+    with patch("sv_mcp.tools.vs.action_manager.vs_api_request") as mock_req:
+        result = await manager.create_state_update("store order", 1, 2, definition)
+    mock_req.assert_not_called()
+    assert result.error
+    if isinstance(definition, dict):
+        assert "STORE_OBJECT" in result.error and "INCREMENT_VALUE" in result.error
+
+
+async def test_update_rejects_invalid_object_action_without_calling_api(manager):
+    with patch("sv_mcp.tools.vs.action_manager.vs_api_request") as mock_req:
+        result = await manager.update(1, 2, 3, definition={**STATE_UPDATE, "objectAction": "BOGUS"})
+    mock_req.assert_not_called()
+    assert "Invalid objectAction 'BOGUS'" in result.error
 
 
 async def test_update_sends_only_id_when_nothing_provided(manager):

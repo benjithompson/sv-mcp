@@ -350,10 +350,10 @@ A typical end-to-end flow an AI assistant can run with these tools:
 
 1. **Seed the data:** `virtual_services_test_data` → `create_from_schema` with the data entities and `global_variables` (e.g. `{"order_counter": "0"}`).
 2. **Define the transactions:** `virtual_services_http_transaction` → `create` a `POST /orders` transaction and a `GET /orders/{id}` transaction whose response reads the stored rows with `${#each (blazeData 'orders' 'where …')}`.
-3. **Make it stateful:** `virtual_services_action` → `create_state_update` on the POST transaction (store the order, increment `order_counter`). For a global variable the definition is `{"model": "", "filters": [], "parameters": [{"key": "order_counter", "value": "1"}], "objectAction": "INCREMENT_VALUE"}` (or `UPDATE_VALUE` to set it). For a data entity, `read` an existing data-entity State Update action first and copy its definition.
-4. **Verify in the sandbox:** `virtual_services_sandbox` → `init` + `test_request` the POST, check `dataset_state`, then `init` + `test_request` the GET.
+3. **Make it stateful:** `virtual_services_action` → `create_state_update` on the POST transaction (store the order, increment `order_counter`). For a global variable the definition is `{"model": "", "filters": [], "parameters": [{"key": "order_counter", "value": "1"}], "objectAction": "INCREMENT_VALUE"}` (or `UPDATE_VALUE` to set it). To store a row, use `"model": "orders"`, `"objectAction": "STORE_OBJECT"` and one parameter per field. For update or delete object, copy the definition of an existing action, because the filter format is not published.
+4. **Verify in the sandbox:** `virtual_services_sandbox` → `init` the POST, wait for `generation_status`, `test_request`, then do the same for the GET. The sandbox state is not always consistent between calls, so treat this as a quick check.
 5. **Deploy:** `virtual_services_virtual_service` → `create` + `deploy`.
-6. **Inspect or reset:** `virtual_services_state` → `export_data` (track it) + `read_data`, or `reset`.
+6. **Inspect or reset:** `virtual_services_state` → `export_data` (track it) + `read_data`, or `reset`. This is the reliable check of the state.
 
 ---
 
