@@ -1,0 +1,15 @@
+[
+  {
+    "trackingId": "uuid-dataset-001",
+    "finishTracking": true,
+    "models": {
+      "orders": [
+        {"id": 1, "item": "book", "status": "NEW"},
+        {"id": 2, "item": "pen", "status": "SHIPPED"}
+      ],
+      "users": [
+        {"user_id": "u1", "email": "ann@example.com", "active": true}
+      ]
+    }
+  }
+]

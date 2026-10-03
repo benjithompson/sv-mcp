@@ -4,6 +4,7 @@ from typing import List, Any, Optional
 from sv_mcp.models.vs.http_header import HttpHeader
 from sv_mcp.models.vs.matching_log_entry import MatchingLogEntry
 from sv_mcp.models.vs.sandbox import Sandbox
+from sv_mcp.models.vs.sandbox_dataset_state import SandboxDatasetState
 from sv_mcp.models.vs.sandbox_response import SandboxResponse
 
 
@@ -39,3 +40,14 @@ def format_sandbox(responses: List[Any], params: Optional[dict] = None) -> List[
             )
         )
     return formatted_sandbox
+
+
+def format_sandbox_dataset_state(responses: List[Any], params: Optional[dict] = None) -> List[SandboxDatasetState]:
+    formatted_states = []
+    for response in responses:
+        formatted_states.append(
+            SandboxDatasetState(
+                models=response.get("models") or {},
+            )
+        )
+    return formatted_states
