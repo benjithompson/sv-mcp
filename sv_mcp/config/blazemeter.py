@@ -22,6 +22,8 @@ VS_ACTIONS_ENDPOINT: str = "actions"
 VS_ASSETS_ENDPOINT: str = "assets"
 VS_CONFIGURATIONS_ENDPOINT: str = "service-mock-configurations"
 VS_RECORDINGS_ENDPOINT: str = "recordings"
+VS_TESTDATA_ENDPOINT: str = "testdata"
+VS_BLUEPRINTS_ENDPOINT: str = "/blueprints"
 VS_VALIDATIONS_ENDPOINT: str = "/system/validations/handlebars"
 VS_CONVERT_ENDPOINT: str = "/system/validations/handlebars/convert"
 
