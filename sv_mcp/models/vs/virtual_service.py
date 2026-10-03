@@ -88,6 +88,28 @@ class VirtualService(BaseModel):
         None, description="Messaging broker connection configuration"
     )
     assets: Optional[List[AssignedAsset]] = Field(None, description="List of assets")
+    tags: Optional[List[str]] = Field(
+        [],
+        description=(
+            "Tags of the virtual service. BlazeMeter automatically adds the 'stateful' tag "
+            "to virtual services whose transactions have STATE_UPDATE actions."
+        )
+    )
+    cacheType: Optional[str] = Field(
+        None,
+        description=(
+            "Test data implementation. 'NO_SQL' (default) or 'SQL'. "
+            "SQL mode runs initialSqlScript and enables ${sql '...'} templates and transaction sqlHint. "
+            "Set it with virtual_services_state set_data_settings."
+        )
+    )
+    initialSqlScript: Optional[str] = Field(
+        None,
+        description=(
+            "SQL bootstrap script for SQL mode, e.g. CREATE VIEW statements over the service data. "
+            "Set it with virtual_services_state set_data_settings."
+        )
+    )
 
     class Config:
         extra = "ignore"
