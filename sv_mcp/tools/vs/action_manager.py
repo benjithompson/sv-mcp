@@ -12,8 +12,8 @@ from sv_mcp.models.vs.web_action import WebAction
 from sv_mcp.telemetry import run_tool
 from sv_mcp.tools.utils import vs_api_request, error_result
 
-# The API answers an unknown objectAction or filter operation with HTTP 500, which error_result reports as a
-# server-side failure, and it drops unknown filter fields without an error, so the definition is checked here first.
+# The API answers an unknown objectAction or filter operation with HTTP 500 and a Java deserialization message,
+# and it drops unknown filter fields (e.g. "operator") without an error, so the definition is checked here first.
 _STATE_UPDATE_OBJECT_ACTIONS = ("STORE_OBJECT", "UPDATE_OBJECT", "DELETE_OBJECT", "UPDATE_VALUE", "INCREMENT_VALUE")
 _STATE_UPDATE_FILTER_OPERATIONS = ("EQUALS", "LESS_THAN", "GREATER_THAN", "STARTS_WITH", "ENDS_WITH", "IN_LIST")
 
@@ -357,4 +357,4 @@ def register(mcp, token: Optional[BzmToken]) -> None:
         try:
             return await run_tool("virtual_services_action", action, ctx, _dispatch)
         except Exception as exc:
-            return error_result(exc)
+            return error_result(exc, action, args)

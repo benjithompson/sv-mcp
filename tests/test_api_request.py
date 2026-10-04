@@ -60,3 +60,39 @@ async def test_empty_body_returns_empty_result():
         result = await vs_api_request(_token(), "DELETE", "/things/1")
     assert result.result is None
     assert result.error is None
+
+
+async def test_single_object_response_has_no_more():
+    # /user returns one object without skip/limit
+    response = httpx.Response(200, json={"result": {"id": 1}})
+    with patch("sv_mcp.tools.utils.httpx.AsyncClient", _client_returning(response)):
+        result = await vs_api_request(_token(), "GET", "/user")
+    assert result.total == 1
+    assert result.has_more is False
+
+
+async def test_has_more_counts_returned_rows():
+    first_page = httpx.Response(200, json={"result": [{"id": 1}, {"id": 2}], "total": 3, "skip": 0, "limit": 2})
+    with patch("sv_mcp.tools.utils.httpx.AsyncClient", _client_returning(first_page)):
+        assert (await vs_api_request(_token(), "GET", "/things")).has_more is True
+    last_page = httpx.Response(200, json={"result": [{"id": 3}], "total": 3, "skip": 2, "limit": 2})
+    with patch("sv_mcp.tools.utils.httpx.AsyncClient", _client_returning(last_page)):
+        assert (await vs_api_request(_token(), "GET", "/things")).has_more is False
+
+
+async def test_401_names_the_api_key_source():
+    token = _token()
+    token.source = "key file /keys/api-key.json"
+    response = httpx.Response(401, json={"error": "Unauthorized"})
+    with patch("sv_mcp.tools.utils.httpx.AsyncClient", _client_returning(response)):
+        result = await vs_api_request(token, "GET", "/things")
+    assert result.error == "Invalid credentials: Unauthorized (API key source: key file /keys/api-key.json)"
+
+
+async def test_401_without_known_source():
+    token = _token()
+    token.source = None
+    response = httpx.Response(401, json={"error": "Unauthorized"})
+    with patch("sv_mcp.tools.utils.httpx.AsyncClient", _client_returning(response)):
+        result = await vs_api_request(token, "GET", "/things")
+    assert result.error == "Invalid credentials: Unauthorized"
