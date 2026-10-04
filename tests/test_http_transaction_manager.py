@@ -248,7 +248,7 @@ async def test_create_and_test_forwards_sample_body_to_create():
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
-    mock_sb.check_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.hold_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.test_request = AsyncMock(return_value=BaseResult(result=[MagicMock(matched=True)]))
 
     with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
@@ -268,7 +268,7 @@ async def test_create_and_test_forwards_sql_hint_to_create():
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
-    mock_sb.check_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.hold_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.test_request = AsyncMock(return_value=BaseResult(result=[MagicMock(matched=True)]))
 
     with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
@@ -290,7 +290,7 @@ async def test_create_and_test_propagates_create_warning():
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
-    mock_sb.check_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.hold_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.test_request = AsyncMock(return_value=BaseResult(result=[MagicMock(matched=True)]))
 
     with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
