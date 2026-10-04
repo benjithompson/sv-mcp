@@ -112,6 +112,7 @@ The BlazeMeter MCP Server provides comprehensive access to BlazeMeter's API thro
 | Read an HTTP Transaction      | Reads HTTP Transaction details                        |
 | Create a new HTTP transaction | Creates a new HTTP transaction                        |
 | Update HTTP transaction       | Updates existing HTTP transaction                     |
+| Delete HTTP transaction       | Deletes an HTTP transaction                           |
 | List all HTTP transactions    | Lists all HTTP transactions in a workspace or service |
 | Validate template             | Validates handlebars template                         |
 | Convert template              | Safely converts handlebars template to VS format      |
@@ -130,6 +131,7 @@ The BlazeMeter MCP Server provides comprehensive access to BlazeMeter's API thro
 | Read a Messaging Transaction       | Reads Messaging Transaction details                           |
 | Create a new Messaging transaction | Creates a new Messaging transaction with optional priority, tags, source/destination mapping, and sample body |
 | Update Messaging transaction       | Updates existing Messaging transaction                        |
+| Delete Messaging transaction       | Deletes a Messaging transaction                               |
 | List all Messaging transactions    | Lists all Messaging transactions in a workspace, service, or messaging virtual service |
 | Validate template                  | Validates handlebars template                                 |
 | Convert template                   | Safely converts handlebars template to VS format              |

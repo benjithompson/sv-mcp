@@ -178,3 +178,21 @@ async def test_update_with_extra_fields(manager):
     assert body["description"] == "updated"
     assert body["tags"] == ["v2"]
     assert body["priority"] == 3
+
+
+async def test_delete_returns_info_on_success(manager):
+    with patch("sv_mcp.tools.vs.messaging_transaction_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult()
+        result = await manager.delete(workspace_id=1, transaction_id=2)
+    assert mock_req.call_args.args[1] == "DELETE"
+    assert mock_req.call_args.args[2] == "/workspaces/1/transactions/2"
+    assert result.error is None
+    assert result.info == ["Transaction 2 deleted"]
+
+
+async def test_delete_passes_error_through(manager):
+    error = BaseResult(error="Not found")
+    with patch("sv_mcp.tools.vs.messaging_transaction_manager.vs_api_request") as mock_req:
+        mock_req.return_value = error
+        result = await manager.delete(workspace_id=1, transaction_id=2)
+    assert result is error

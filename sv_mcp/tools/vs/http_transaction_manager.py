@@ -34,6 +34,16 @@ class HttpTransactionManager:
             result_formatter=format_http_transactions
         )
 
+    async def delete(self, workspace_id: int, transaction_id: int) -> BaseResult:
+        result = await vs_api_request(
+            self.token,
+            "DELETE",
+            f"{WORKSPACES_ENDPOINT}/{workspace_id}/{VS_TRANSACTIONS_ENDPOINT}/{transaction_id}"
+        )
+        if result.error:
+            return result
+        return BaseResult(info=[f"Transaction {transaction_id} deleted"])
+
     async def list(self, workspace_id: int, service_id: int, limit: int = 50, offset: int = 0) -> BaseResult:
         parameters = {
             "limit": limit,
@@ -208,6 +218,12 @@ class HttpTransactionManager:
                       "Sandbox data generation failed — transaction was created. Call virtual_services_sandbox "
                       "generation_status until it returns true, then test_request."]
             )
+        check_result = await sandbox_manager.check_transaction(workspace_id, transaction_id)
+        if check_result.error:
+            return BaseResult(
+                error=check_result.error,
+                info=[f"transaction_id={transaction_id}", "Sandbox check failed — transaction was created"]
+            )
 
         test_results = []
         passed = 0
@@ -343,6 +359,10 @@ def register(mcp, token: Optional[BzmToken]) -> None:
             args(dict): Dictionary with the following required parameters:
                 workspace_id (int): Mandatory. The id of the workspace to list transactions from.
                 id (int): Mandatory. The id of the transaction to get information.
+        - delete: Delete a transaction.
+            args(dict): Dictionary with the following required parameters:
+                workspace_id (int): Mandatory. The id of the workspace.
+                id (int): Mandatory. The id of the transaction to delete.
         - list: List all HTTP transactions. 
             args(dict): Dictionary with the following required parameters:
                 workspace_id (int): Mandatory. The id of the workspace to list transactions from.
@@ -362,7 +382,8 @@ def register(mcp, token: Optional[BzmToken]) -> None:
             Waits up to 60 s for sandbox data generation before it sends the test cases.
             A transaction is only complete when sandbox returns matched=true for all test cases.
             On all-fail: error contains the failure summary; transaction still exists — use update to fix the DSL,
-            then re-init with virtual_services_sandbox init and re-test with virtual_services_sandbox test_request.
+            then re-init with virtual_services_sandbox init and re-test with virtual_services_sandbox test_request,
+            or remove it with delete.
             On partial fail: warning lists failures; transaction still exists.
             Same sampleBody placement and plain-text/no-pre-encoding rules as `create` apply here — see `create`.
             args:
@@ -383,8 +404,9 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                 result[].matched: True if the test request matched the transaction.
                 result[].body: Decoded response body (plain text or JSON).
                 result[].mismatch_reasons: Why the request did not match (when matched=False).
-                error: All test cases failed, creation/sandbox init failed, or sandbox data generation did not finish.
-                    On sandbox init or generation failure, info still contains transaction_id so the transaction can be recovered.
+                error: All test cases failed, creation/sandbox init failed, sandbox data generation did not finish,
+                    or the sandbox holds another transaction (for example, another session called init).
+                    On a sandbox failure, info still contains transaction_id so the transaction can be recovered.
                 warning: Some (not all) test cases failed.
         - create: Create a new HTTP transaction.
             Important: before using template in transaction definition validate it and
@@ -454,6 +476,8 @@ def register(mcp, token: Optional[BzmToken]) -> None:
             match action:
                 case "read":
                     return await transaction_manager.read(args["workspace_id"], args["id"])
+                case "delete":
+                    return await transaction_manager.delete(args["workspace_id"], args["id"])
                 case "list":
                     return await transaction_manager.list(
                         args["workspace_id"],

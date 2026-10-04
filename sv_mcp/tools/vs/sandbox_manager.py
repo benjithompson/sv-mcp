@@ -68,7 +68,24 @@ class SandboxManager:
                             "Processing actions on the transaction, state updates included, run during 'test_request'."])
         return result
 
-    async def test_request(self, request: Dict[str, Any], workspace_id: int) -> BaseResult:
+    async def check_transaction(self, workspace_id: int, transaction_id: int) -> BaseResult:
+        result = await vs_api_request(
+            self.token,
+            "GET",
+            f"{WORKSPACES_ENDPOINT}/{workspace_id}/{VS_SANDBOX_ENDPOINT}",
+            result_formatter=format_sandbox
+        )
+        if result.error:
+            return result
+        # There is one sandbox per user, so another session can replace the transaction after init.
+        held = result.result[0].transactionId if result.result else None
+        if held != transaction_id:
+            return BaseResult(error=f"The sandbox now holds transaction {held}, not {transaction_id}. Another session "
+                                    "or a stored configuration replaced it. Call init again.")
+        return result
+
+    async def test_request(self, request: Dict[str, Any], workspace_id: int,
+                           transaction_id: Optional[int] = None) -> BaseResult:
         if not isinstance(request, dict):
             return BaseResult(error="request must be an object with the HTTP request details. See SandboxRequest schema.")
         http_request = dict(request)
@@ -78,6 +95,10 @@ class SandboxManager:
             http_request["body"] = content
         if http_request.get("body") is not None and not _is_base64(http_request["body"]):
             return BaseResult(error="request.body must be base64-encoded.")
+        if transaction_id is not None:
+            check_result = await self.check_transaction(workspace_id, transaction_id)
+            if check_result.error:
+                return check_result
         sandbox_request = {
             "httpRequest": http_request,
         }
@@ -167,10 +188,12 @@ def register(mcp, token: Optional[BzmToken]) -> None:
              then `test_request`.
           5. If a STATE_UPDATE consumes an HTTP call result (${httpcalls.<name>.response.body}), call
              `set_action_mocks` after `init` and before `test_request` so the HTTP_CALL action returns a fixed response.
-          Limits: the sandbox state is not consistent between calls. `dataset_state` can return an older copy
-          of the data for some seconds, and `reset_dataset` does not always clear it. Prefer the response of a
-          state-reading transaction over `dataset_state`. For a final check, deploy the virtual service and use
-          virtual_services_state (export_data, read_data, reset), whose state is consistent.
+          Limits: there is one sandbox per user, so another session that calls `init` replaces the transaction.
+          Pass transaction_id to `test_request` to detect this. The sandbox state is not consistent between calls.
+          `dataset_state` can return an older copy of the data for some seconds, and `reset_dataset` does not
+          always clear it. Prefer the response of a state-reading transaction over `dataset_state`. For a final
+          check, deploy the virtual service and use virtual_services_state (export_data, read_data, reset), whose
+          state is consistent.
         Actions:
         - init: Places transaction into sandbox and stores it as the sandbox's transaction. Must be called BEFORE test_request.
             args(dict): Dictionary with the following required parameters:
@@ -180,6 +203,8 @@ def register(mcp, token: Optional[BzmToken]) -> None:
             args(dict): Dictionary with the following required parameters:
                 request (SandboxRequest): Mandatory. The request definition (method, path, headers, body).
                 workspace_id (int): Mandatory. The id of the workspace.
+                transaction_id (int): Optional. The id of the transaction passed to init. When set, the request
+                    is sent only if the sandbox still holds this transaction.
         - dataset_state: Returns the current sandbox dataset: data entity name -> rows.
             Use it after test_request to check the rows a STATE_UPDATE action stored, updated or deleted.
             args(dict): Dictionary with the following required parameters:
@@ -215,7 +240,9 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                 case "init":
                     return await sandbox_manager.init(args["workspace_id"], args["transaction_id"])
                 case "test_request":
-                    return await sandbox_manager.test_request(args["request"], args["workspace_id"])
+                    return await sandbox_manager.test_request(
+                        args["request"], args["workspace_id"], args.get("transaction_id")
+                    )
                 case "dataset_state":
                     return await sandbox_manager.dataset_state(args["workspace_id"])
                 case "reset_dataset":

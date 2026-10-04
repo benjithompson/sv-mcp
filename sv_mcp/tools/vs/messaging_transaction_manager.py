@@ -29,6 +29,16 @@ class MessagingTransactionManager:
             result_formatter=format_messaging_transactions
         )
 
+    async def delete(self, workspace_id: int, transaction_id: int) -> BaseResult:
+        result = await vs_api_request(
+            self.token,
+            "DELETE",
+            f"{WORKSPACES_ENDPOINT}/{workspace_id}/{VS_TRANSACTIONS_ENDPOINT}/{transaction_id}"
+        )
+        if result.error:
+            return result
+        return BaseResult(info=[f"Transaction {transaction_id} deleted"])
+
     async def list(self, workspace_id: int, service_id: Optional[int] = None,
                    limit: int = 50, offset: int = 0,
                    service_mock_id: Optional[int] = None) -> BaseResult:
@@ -349,6 +359,10 @@ def register(mcp, token: Optional[BzmToken]) -> None:
             args(dict): Dictionary with the following required parameters:
                 workspace_id (int): Mandatory. The id of the workspace to list transactions from.
                 id (int): Mandatory. The id of the transaction to get information.
+        - delete: Delete a transaction.
+            args(dict): Dictionary with the following required parameters:
+                workspace_id (int): Mandatory. The id of the workspace.
+                id (int): Mandatory. The id of the transaction to delete.
         - list: List all transactions.
             args(dict): Dictionary with the following required parameters:
                 workspace_id (int): Mandatory. The id of the workspace to list transactions from.
@@ -419,6 +433,8 @@ def register(mcp, token: Optional[BzmToken]) -> None:
             match action:
                 case "read":
                     return await transaction_manager.read(args["workspace_id"], args["id"])
+                case "delete":
+                    return await transaction_manager.delete(args["workspace_id"], args["id"])
                 case "list":
                     return await transaction_manager.list(
                         args["workspace_id"],

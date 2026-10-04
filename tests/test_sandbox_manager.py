@@ -119,6 +119,48 @@ async def test_test_request_rejects_body_that_is_not_base64(manager):
     assert result.error == "request.body must be base64-encoded."
 
 
+async def test_check_transaction_returns_sandbox_when_it_holds_the_transaction(manager):
+    sandbox = format_sandbox([{"serviceId": 5, "transactionId": 2}])
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=sandbox)
+        result = await manager.check_transaction(workspace_id=1, transaction_id=2)
+    assert mock_req.call_args.args[1] == "GET"
+    assert mock_req.call_args.args[2] == "/workspaces/1/sandbox"
+    assert "params" not in mock_req.call_args.kwargs
+    assert result.error is None
+    assert result.result == sandbox
+
+
+async def test_check_transaction_reports_another_transaction(manager):
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=format_sandbox([{"serviceId": 9, "transactionId": 7}]))
+        result = await manager.check_transaction(workspace_id=1, transaction_id=2)
+    assert result.error == ("The sandbox now holds transaction 7, not 2. Another session "
+                            "or a stored configuration replaced it. Call init again.")
+
+
+async def test_test_request_with_transaction_id_checks_before_sending(manager):
+    request = {"method": "GET", "path": "/orders", "name": "svc"}
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.side_effect = [
+            BaseResult(result=format_sandbox([{"serviceId": 5, "transactionId": 2}])),
+            BaseResult(result=[]),
+        ]
+        await manager.test_request(request, workspace_id=1, transaction_id=2)
+    check_call, test_call = mock_req.call_args_list
+    assert check_call.args[2] == "/workspaces/1/sandbox"
+    assert test_call.args[2] == "/workspaces/1/sandbox/test-request"
+
+
+async def test_test_request_is_not_sent_when_sandbox_holds_another_transaction(manager):
+    request = {"method": "GET", "path": "/orders", "name": "svc"}
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=format_sandbox([{"serviceId": 9, "transactionId": 7}]))
+        result = await manager.test_request(request, workspace_id=1, transaction_id=2)
+    assert mock_req.call_count == 1
+    assert result.error.startswith("The sandbox now holds transaction 7")
+
+
 async def test_dataset_state_builds_endpoint(manager):
     with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
         mock_req.return_value = BaseResult(result=[])
