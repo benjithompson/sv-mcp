@@ -56,3 +56,55 @@ class TestErrorResult:
     def test_never_forwards_raw_traceback_for_http_errors(self):
         r = error_result(_http_error(500))
         assert "Traceback" not in r.error
+
+
+def _dispatch(args):
+    return args["id"]
+
+
+def format_asset(raw):
+    return raw["id"]
+
+
+def _key_error(fn) -> KeyError:
+    try:
+        fn({})
+    except KeyError as e:
+        return e
+
+
+class TestMissingArgument:
+    def test_keyerror_in_dispatch_names_argument_and_action(self):
+        r = error_result(_key_error(_dispatch), "read_data")
+        assert r.error == ("Missing required argument 'id' for action 'read_data'. "
+                           "Check the argument names in the tool description.")
+
+    def test_keyerror_outside_dispatch_stays_internal(self):
+        # e.g. a formatter reading a field the API did not return
+        r = error_result(_key_error(format_asset), "read_data")
+        assert r.error.startswith("Internal error: KeyError")
+
+    def test_keyerror_without_traceback_stays_internal(self):
+        r = error_result(KeyError("id"))
+        assert r.error.startswith("Internal error: KeyError")
+
+
+def test_internal_error_points_to_sv_mcp_issues():
+    r = error_result(ValueError("boom"))
+    assert "https://github.com/Blazemeter/sv-mcp/issues" in r.error
+    assert "bzm-mcp" not in r.error
+
+
+async def test_tool_call_with_wrong_argument_name_reports_missing_argument():
+    from mcp.server.fastmcp import FastMCP
+    from sv_mcp.server import register_tools
+
+    mcp = FastMCP("test")
+    register_tools(mcp, None)
+    result = await mcp.call_tool(
+        "virtual_services_state",
+        {"action": "read_data", "args": {"workspace_id": 1, "virtual_service_id": 2}},
+    )
+    text = str(result)
+    assert "Missing required argument 'id' for action 'read_data'" in text
+    assert "Internal error" not in text

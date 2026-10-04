@@ -257,7 +257,25 @@ async def test_create_and_test_forwards_sample_body_to_create():
             sample_body="hello",
         )
 
-    manager.create.assert_awaited_once_with("t1", 1, 2, {}, None, "hello")
+    manager.create.assert_awaited_once_with("t1", 1, 2, {}, None, "hello", None)
+
+
+async def test_create_and_test_forwards_sql_hint_to_create():
+    manager = HttpTransactionManager(token=MagicMock(), ctx=MagicMock())
+    manager.create = AsyncMock(return_value=BaseResult(result=[MagicMock(id=1)]))
+    mock_sb = MagicMock()
+    mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.test_request = AsyncMock(return_value=BaseResult(result=[MagicMock(matched=True)]))
+
+    with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
+        await manager.create_and_test(
+            transaction_name="t1", workspace_id=1, service_id=2,
+            dsl={}, delay=None,
+            test_cases=[{"method": "GET", "path": "/ping", "name": "svc"}],
+            sql_hint="select * from users",
+        )
+
+    manager.create.assert_awaited_once_with("t1", 1, 2, {}, None, None, "select * from users")
 
 
 async def test_create_and_test_propagates_create_warning():
@@ -293,6 +311,56 @@ async def test_create_leaves_non_body_matcher_sample_body_untouched(manager):
     body = mock_req.call_args.kwargs["json"]
     url_matcher = body["transactions"][0]["dsl"]["requestDsl"]["url"]
     assert url_matcher["sampleBody"] == "not-base64-should-be-untouched"
+
+
+async def test_create_places_sql_hint_inside_transaction(manager):
+    with patch("sv_mcp.tools.vs.http_transaction_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=[])
+        await manager.create(
+            transaction_name="t1", workspace_id=1, service_id=2,
+            dsl=_dsl_with_body_matcher(matching_value='{"foo": "bar"}'), delay=None,
+            sql_hint="select * from users where email = '${request.query.email}'",
+        )
+    body = mock_req.call_args.kwargs["json"]
+    assert body["transactions"][0]["sqlHint"] == "select * from users where email = '${request.query.email}'"
+    assert "sqlHint" not in body
+
+
+async def test_create_omits_sql_hint_when_none(manager):
+    with patch("sv_mcp.tools.vs.http_transaction_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=[])
+        await manager.create(
+            transaction_name="t1", workspace_id=1, service_id=2,
+            dsl=_dsl_with_body_matcher(matching_value='{"foo": "bar"}'), delay=None,
+        )
+    body = mock_req.call_args.kwargs["json"]
+    assert "sqlHint" not in body["transactions"][0]
+
+
+async def test_update_places_sql_hint_at_top_level(manager):
+    with patch("sv_mcp.tools.vs.http_transaction_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=[])
+        await manager.update(
+            id=10, transaction_name="t1", workspace_id=1,
+            dsl=_dsl_with_body_matcher(matching_value='{"foo": "bar"}'), delay=None,
+            sql_hint="select * from users",
+        )
+    assert mock_req.call_args.args[1] == "PUT"
+    assert mock_req.call_args.args[2] == "/workspaces/1/transactions/10"
+    body = mock_req.call_args.kwargs["json"]
+    assert body["sqlHint"] == "select * from users"
+    assert body["name"] == "t1"
+
+
+async def test_update_omits_sql_hint_when_none(manager):
+    with patch("sv_mcp.tools.vs.http_transaction_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=[])
+        await manager.update(
+            id=10, transaction_name="t1", workspace_id=1,
+            dsl=_dsl_with_body_matcher(matching_value='{"foo": "bar"}'), delay=None,
+        )
+    body = mock_req.call_args.kwargs["json"]
+    assert "sqlHint" not in body
 
 
 def test_matcher_dsl_sample_body_field_round_trips():

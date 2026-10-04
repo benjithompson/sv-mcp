@@ -93,4 +93,4 @@ def register(mcp, token: Optional[BzmToken]) -> None:
         try:
             return await run_tool("blazemeter_account", action, ctx, _dispatch)
         except Exception as exc:
-            return error_result(exc)
+            return error_result(exc, action)

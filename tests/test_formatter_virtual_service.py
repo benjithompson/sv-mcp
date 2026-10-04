@@ -90,3 +90,27 @@ def test_format_virtual_service_priority_mode():
     fixture[0]["priorityMode"] = "ROUND_ROBIN"
     result = format_virtual_services(fixture)
     assert result[0].priorityMode == "ROUND_ROBIN"
+
+
+def test_format_virtual_service_state_fields():
+    result = format_virtual_services(load_fixture("virtual_service"))
+    vs = result[0]
+    assert vs.tags == ["stateful"]
+    assert vs.cacheType == "NO_SQL"
+    assert vs.initialSqlScript is None
+
+
+def test_format_virtual_service_sql_data_settings():
+    fixture = load_fixture("virtual_service")
+    fixture[0]["cacheType"] = "SQL"
+    fixture[0]["initialSqlScript"] = "CREATE VIEW active_users AS SELECT * FROM users WHERE active = 'true'"
+    result = format_virtual_services(fixture)
+    assert result[0].cacheType == "SQL"
+    assert result[0].initialSqlScript == "CREATE VIEW active_users AS SELECT * FROM users WHERE active = 'true'"
+
+
+def test_format_virtual_service_missing_tags_defaults_to_empty():
+    fixture = load_fixture("virtual_service")
+    del fixture[0]["tags"]
+    result = format_virtual_services(fixture)
+    assert result[0].tags == []

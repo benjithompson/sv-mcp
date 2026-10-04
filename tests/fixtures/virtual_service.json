@@ -20,6 +20,9 @@
     "httpRunnerEnabled": true,
     "proxy": null,
     "brokerConfig": null,
-    "assets": []
+    "assets": [],
+    "tags": ["stateful"],
+    "cacheType": "NO_SQL",
+    "initialSqlScript": null
   }
 ]

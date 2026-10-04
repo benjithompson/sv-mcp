@@ -8,7 +8,7 @@ to deploying it to the virtual service. All through natural language interaction
 
 - **Service Management**: Create and manage services.
 - **Transaction Management**: Create, validate, manage HTTP and Messaging transactions.
-- **Action Management**: Create, read, list, and manage transaction actions (Http calls and Webhooks).
+- **Action Management**: Create, read, list, update, delete, and reorder transaction actions (Http calls, Webhooks, and State Updates).
 - **Asset Management**: Upload assets (certificates and keystores).
 - **Sandbox Management**: Attach HTTP transaction and test it.
 - **Location Management**: List available locations.
@@ -17,7 +17,9 @@ to deploying it to the virtual service. All through natural language interaction
 - **Messaging Virtual Service Management**: Create, deploy, and manage messaging virtual services across IBM MQ, ActiveMQ, and Kafka brokers.
 - **Recording Management**: Capture live broker traffic into recordings and replay them via messaging virtual services.
 - **Virtual Service Templates Management**: Create, modify, create from the virtual service, apply to a virtual service.
-- **Test Data Management**: Create, update, and read TDM datasets for virtual services to drive data-driven transaction matching.
+- **Test Data Management**: Create, update, and read TDM datasets and global variables for virtual services to drive data-driven transaction matching.
+- **Stateful Virtual Services**: Store, update, and delete service data and maintain global counters with State Update actions; verify state changes in the sandbox, then inspect, export, and reset the live state of a virtual service.
+- **Blueprint Management**: Browse BlazeMeter blueprints and apply them to a service.
 
 ---
 
@@ -47,16 +49,18 @@ The BlazeMeter MCP Server provides comprehensive access to BlazeMeter's API thro
 | **Service**                  | Service Management                  | Create and manage services                            |
 | **Http Transaction**         | Http Transaction Management         | Create, manage and validate http transactions         |
 | **Messaging Transaction**    | Messaging Transaction Management    | Create, manage and validate messaging transactions    |
-| **Action**                   | Action Management                   | Create, read, list and manage transaction actions     |
+| **Action**                   | Action Management                   | Create, read, list and manage transaction actions, including State Updates |
 | **Virtual service**          | Virtual Service Management          | Create, manage, deploy, stop virtual services         |
 | **Virtual service template** | Virtual Service Template Management | Create, manage, apply to the virtual service          |
 | **Messaging Virtual Service**| Messaging Virtual Service Management| Create, manage, deploy messaging virtual services for IBM MQ, ActiveMQ, Kafka |
 | **Recording**                | Recording Management                | Create, manage recordings and recorded messages for messaging virtual services |
 | **Asset**                    | Asset Management                    | Upload assets                                         |
 | **Configuration**            | Configuration Management            | Create, manage configurations                         |
-| **Sandbox**                  | Sandbox Management                  | Assign http transaction, test it                      |
+| **Sandbox**                  | Sandbox Management                  | Assign http transaction, test it, inspect and reset sandbox state |
 | **Tracking**                 | Tracking Management                 | Fetch tracking status for virtual service actions     |
-| **Test Data**                | Test Data Management                | Create, update, read TDM datasets for virtual services |
+| **Test Data**                | Test Data Management                | Create, update, read TDM datasets and global variables for virtual services |
+| **State**                    | Virtual Service State Management    | Read, export, and reset the service data of a stateful virtual service |
+| **Blueprint**                | Blueprint Management                | Browse blueprints and apply them to a service         |
 ---
 
 ### **User Management**
@@ -114,6 +118,8 @@ The BlazeMeter MCP Server provides comprehensive access to BlazeMeter's API thro
 | Assign keystore               | Assign keystore asset to an existing transaction      |
 | Assign certificate            | Assign certificate asset to an existing transaction   |
 
+`create`, `create_and_test` and `update` accept an optional `sqlHint`: the SQLite query that selects the service data rows for the transaction.
+
 ---
 
 ### **Messaging Transaction Management**
@@ -133,16 +139,22 @@ The BlazeMeter MCP Server provides comprehensive access to BlazeMeter's API thro
 ---
 
 ### **Action Management**
-**What it does:** Creates, reads, and lists actions for a transaction.
+**What it does:** Creates, reads, lists, updates, deletes, and reorders processing actions for a transaction. Processing actions run after a request matches and before the response is sent.
 
-| Action                      | What you get                                   |
-|-----------------------------|------------------------------------------------|
-| Read an Action              | Reads a single transaction action's details    |
-| List Actions                | Lists all actions of a transaction             |
-| Create an HTTP Call         | Creates an HTTP Call sync action               |
-| Create a Web Hook           | Creates a Webhook async                        |
-| Assign keystore             | Assign keystore asset to an existing action    |
-| Assign certificate          | Assign certificate asset to an existing action |
+| Action                      | What you get                                                                                   |
+|-----------------------------|------------------------------------------------------------------------------------------------|
+| Read an Action              | Reads a single transaction action's details                                                    |
+| List Actions                | Lists all actions of a transaction                                                             |
+| Create an HTTP Call         | Creates an HTTP Call sync action                                                               |
+| Create a Web Hook           | Creates a Webhook async                                                                        |
+| Create a State Update       | Creates a State Update action that stores, updates, or deletes service data, or sets or increments a global variable |
+| Update an Action            | Partially updates an action's name, definition, or conditions                                  |
+| Delete an Action            | Deletes an action from a transaction                                                           |
+| Reorder Actions             | Sets the execution order of a transaction's actions                                            |
+| Assign keystore             | Assign keystore asset to an existing action                                                    |
+| Assign certificate          | Assign certificate asset to an existing action                                                 |
+
+Every create action accepts optional `conditions`; the action only runs when all of them match.
 
 ---
 
@@ -182,10 +194,14 @@ The BlazeMeter MCP Server provides comprehensive access to BlazeMeter's API thro
 ### **Sandbox Management**
 **What it does:** Validates HTTP transactions without deploying a virtual service.
 
-| Action       | What you get                                                             |
-|--------------|--------------------------------------------------------------------------|
-| Init sandbox | Assigns an existing transaction to the sandbox                           |
-| Test request | Sends test http request to the sandbox and receives transaction response |
+| Action             | What you get                                                                     |
+|--------------------|----------------------------------------------------------------------------------|
+| Init sandbox       | Assigns an existing transaction to the sandbox                                   |
+| Test request       | Sends test http request to the sandbox and receives transaction response         |
+| Dataset state      | Shows the sandbox's current service data rows, including changes made by State Updates |
+| Reset dataset      | Discards sandbox state changes so the next test starts from the original service data |
+| Generation status  | Reports whether sandbox service data generation has finished                     |
+| Set action mocks   | Mocks HTTP Call / Webhook action responses while testing in the sandbox          |
 
 ---
 
@@ -208,7 +224,7 @@ The BlazeMeter MCP Server provides comprehensive access to BlazeMeter's API thro
 | Update Virtual Service         | Updates existing Virtual Service                                                          |
 | List all Virtual Services      | Lists all Virtual Services in a workspace or service                                      |
 | Deploy Virtual Service         | Starts Virtual Service container                                                          |
-| Configure Virtual Service      | Updates running Virtual Service                                                           |
+| Configure Virtual Service      | Updates running Virtual Service; optionally keeps or regenerates its service data (state) |
 | Stop Virtual Service           | Stops Virtual Service container                                                           |
 | Assign transactions            | Assigns transactions to the Virtual Service                                               |
 | Unassign transactions          | Unassigns transactions from the Virtual Service                                           |
@@ -299,6 +315,45 @@ The BlazeMeter MCP Server provides comprehensive access to BlazeMeter's API thro
 | Read                | Reads a data-model asset with full content for a given service                   |
 | Update              | Replaces entities/fields on an existing schema-based dataset                     |
 | Update from CSV     | Rebuilds a CSV-based dataset from a local CSV file; supports field name remapping |
+| Read global variables | Reads the service's global variables (global-scope parameters such as counters) |
+| Set global variables  | Replaces the service's global variables, used as initial values for stateful virtual services |
+
+---
+
+### **Virtual Service State Management**
+**What it does:** Inspects and resets the service data of a stateful virtual service. A virtual service becomes stateful when its transactions have State Update actions. State belongs to the virtual service, is shared by all of its clients, and persists across stop and start.
+
+| Action            | What you get                                                                                         |
+|-------------------|------------------------------------------------------------------------------------------------------|
+| Read data         | Reads the virtual service's service data: download links, global variables, and data settings        |
+| Export data       | Exports the running virtual service's current (state-modified) dataset; returns a tracking id        |
+| Reset             | Reconfigures the running virtual service and regenerates its service data, discarding state changes |
+| Set data settings | Switches between the default NO_SQL data mode and SQL mode, which adds a bootstrap script (e.g. views) |
+
+---
+
+### **Blueprint Management**
+**What it does:** Browses BlazeMeter blueprints (ready-made services with transactions and service data) and applies them to a service.
+
+| Action            | What you get                                                                                    |
+|-------------------|-------------------------------------------------------------------------------------------------|
+| List blueprints   | Lists blueprints, filtered by keyword or tags                                                    |
+| Read a blueprint  | Reads blueprint details, optionally including its transactions                                   |
+| List transactions | Lists a blueprint's transactions with their DSL and processing actions                           |
+| Apply a blueprint | Creates the blueprint's transactions (and service data) in an existing or new service            |
+
+---
+
+### Building a stateful virtual service
+
+A typical end-to-end flow an AI assistant can run with these tools:
+
+1. **Seed the data:** `virtual_services_test_data` → `create_from_schema` with the data entities and `global_variables` (e.g. `{"order_counter": "0"}`).
+2. **Define the transactions:** `virtual_services_http_transaction` → `create` a `POST /orders` transaction and a `GET /orders?id=…` transaction whose response reads the stored rows with `${#each (blazeData 'orders' 'where …')}`.
+3. **Make it stateful:** `virtual_services_action` → `create_state_update` on the POST transaction (store the order, increment `order_counter`). For a global variable the definition is `{"model": "", "filters": [], "parameters": [{"key": "order_counter", "value": "1"}], "objectAction": "INCREMENT_VALUE"}` (or `UPDATE_VALUE` to set it). To store a row, use `"model": "orders"`, `"objectAction": "STORE_OBJECT"` and one parameter per field. For update or delete object, add `"filters": [{"key": "id", "operation": "EQUALS", "values": ["${request.query.id}"]}]` to select the rows. The operations are `EQUALS`, `LESS_THAN`, `GREATER_THAN`, `STARTS_WITH`, `ENDS_WITH`, and `IN_LIST`.
+4. **Verify in the sandbox:** `virtual_services_sandbox` → `init` the POST, wait for `generation_status`, `test_request`, then do the same for the GET. The sandbox state is not always consistent between calls, so treat this as a quick check.
+5. **Deploy:** `virtual_services_virtual_service` → `create` + `deploy`.
+6. **Inspect or reset:** `virtual_services_state` → `export_data` (track it) + `read_data`, or `reset`. This is the reliable check of the state.
 
 ---
 

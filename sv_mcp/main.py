@@ -62,13 +62,21 @@ def init_logging(level_name: str, log_file: str | None = None) -> None:
         logging.getLogger().addHandler(fh)
 
 
+_reported_key_problems: set[str] = set()
+
+
+def _report_key_problem(message: str) -> None:
+    # get_token runs twice at startup (banner preview, then server start); say each problem once
+    if message not in _reported_key_problems:
+        _reported_key_problems.add(message)
+        print(f"  API key: {message}", file=sys.stderr)
+
+
 def get_token(api_key_id: str | None = None, api_key_secret: str | None = None):
     global BLAZEMETER_API_KEY_FILE_PATH
 
-    token = None
-
     if api_key_id and api_key_secret:
-        return BzmToken(api_key_id, api_key_secret)
+        return BzmToken(api_key_id, api_key_secret, source="--api-key-id/--api-key-secret arguments")
 
     local_api_key_file = os.path.join(os.path.dirname(__executable__), "api-key.json")
     cwd_api_key_file = os.path.join(os.getcwd(), "api-key.json")
@@ -80,14 +88,16 @@ def get_token(api_key_id: str | None = None, api_key_secret: str | None = None):
 
     if BLAZEMETER_API_KEY_FILE_PATH:
         try:
-            token = BzmToken.from_file(BLAZEMETER_API_KEY_FILE_PATH)
-        except BzmTokenError:
-            pass
-        except Exception:
-            pass
-    elif os.getenv('API_KEY_ID') and os.getenv('API_KEY_SECRET'):
-        token = BzmToken(os.getenv('API_KEY_ID'), os.getenv('API_KEY_SECRET'))
-    return token
+            return BzmToken.from_file(BLAZEMETER_API_KEY_FILE_PATH)
+        except BzmTokenError as e:
+            _report_key_problem(f"key file not used: {e}")
+        except Exception as e:
+            _report_key_problem(f"key file {BLAZEMETER_API_KEY_FILE_PATH!r} not used: {type(e).__name__}")
+
+    if os.getenv('API_KEY_ID') and os.getenv('API_KEY_SECRET'):
+        return BzmToken(os.getenv('API_KEY_ID'), os.getenv('API_KEY_SECRET'),
+                        source="API_KEY_ID/API_KEY_SECRET environment variables")
+    return None
 
 
 def run(log_level: str = "DEBUG", mode: str = "stdio"):

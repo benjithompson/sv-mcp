@@ -54,7 +54,13 @@ async def _api_request(base_url: str,
             resp.raise_for_status()
             if resp.status_code == 204 or not resp.content:
                 return BaseResult()
-            data = resp.json()
+            # Some endpoints return a bare string or array instead of the {"result": ...} envelope.
+            try:
+                data = resp.json()
+            except ValueError:
+                return BaseResult(result=[resp.text], total=1)
+            if not isinstance(data, dict):
+                data = {"result": data}
 
             result = data.get("result", [])
             default_total = 0
@@ -64,13 +70,14 @@ async def _api_request(base_url: str,
 
             final_result = result_formatter(result, result_formatter_params) if result_formatter else result
             total = data.get("total", default_total)
-            skip, limit = data.get("skip", 0), data.get("limit", 0)
+            skip = data.get("skip") or 0
 
             return BaseResult(
                 result=final_result,
                 error=data.get("error"),
                 total=total,
-                has_more=(total - (skip + limit)) > 0
+                # Single-object responses carry no limit, so count the rows returned.
+                has_more=skip + len(result) < total
             )
         except httpx.HTTPStatusError as e:
             try:
@@ -79,7 +86,8 @@ async def _api_request(base_url: str,
             except Exception:
                 server_msg = e.response.text or str(e)
             if e.response.status_code == 401:
-                return BaseResult(error=f"Invalid credentials: {server_msg}")
+                source = f" (API key source: {token.source})" if token.source else ""
+                return BaseResult(error=f"Invalid credentials: {server_msg}{source}")
             if e.response.status_code == 403:
                 return BaseResult(error=f"Access forbidden (check workspace permissions): {server_msg}")
             return BaseResult(error=str(server_msg) or str(e))
@@ -108,15 +116,30 @@ async def tdm_api_request(token: Optional[BzmToken], method: str, endpoint: str,
     return await _api_request(os.getenv('TDM_URL', TDM_API_BASE_URL), token, method, endpoint,
                               result_formatter, result_formatter_params, **kwargs)
 
-def error_result(exc: Exception) -> BaseResult:
+def _raised_in_dispatch(exc: Exception) -> bool:
+    tb = exc.__traceback__
+    while tb and tb.tb_next:
+        tb = tb.tb_next
+    return tb is not None and tb.tb_frame.f_code.co_name == "_dispatch"
+
+
+def error_result(exc: Exception, action: Optional[str] = None) -> BaseResult:
     """
     Convert an exception into a clean, classified BaseResult error.
 
-    Distinguishes request problems (4xx), environmental problems (timeout /
-    network), and system failures (5xx / unexpected) so an agent can pick a
-    valid recovery path. Never returns raw tracebacks or internal server state
-    to the caller — full diagnostics are logged server-side instead.
+    Distinguishes request problems (4xx, missing tool arguments), environmental
+    problems (timeout / network), and system failures (5xx / unexpected) so an
+    agent can pick a valid recovery path. Never returns raw tracebacks or
+    internal server state to the caller — full diagnostics are logged
+    server-side instead.
+
+    A KeyError raised directly in a tool's _dispatch comes from an args lookup,
+    so it is reported as a missing argument.
     """
+    if isinstance(exc, KeyError) and exc.args and _raised_in_dispatch(exc):
+        action_part = f" for action {action!r}" if action else ""
+        return BaseResult(error=f"Missing required argument {exc.args[0]!r}{action_part}. "
+                                f"Check the argument names in the tool description.")
     if isinstance(exc, httpx.HTTPStatusError):
         code = exc.response.status_code
         try:
@@ -143,7 +166,7 @@ def error_result(exc: Exception) -> BaseResult:
     return BaseResult(
         error=f"Internal error: {type(exc).__name__}. "
               "If you think this is a bug, please contact BlazeMeter support or "
-              "report the issue at https://github.com/BlazeMeter/bzm-mcp/issues"
+              "report the issue at https://github.com/Blazemeter/sv-mcp/issues"
     )
 
 

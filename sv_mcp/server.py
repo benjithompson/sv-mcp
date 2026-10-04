@@ -17,6 +17,8 @@ from sv_mcp.tools.vs.asset_manager import register as register_asset_manager
 from sv_mcp.tools.vs.test_data_manager import register as register_test_data_manager
 from sv_mcp.tools.vs.recording_manager import register as register_recording_manager
 from sv_mcp.tools.vs.messaging_virtual_service_manager import register as register_messaging_virtual_service_manager
+from sv_mcp.tools.vs.state_manager import register as register_state_manager
+from sv_mcp.tools.vs.blueprint_manager import register as register_blueprint_manager
 from sv_mcp.config.token import BzmToken
 from typing import Optional, Dict, Callable
 
@@ -53,6 +55,8 @@ def register_tools(mcp, token: Optional[BzmToken]):
         "virtual_services_test_data": register_test_data_manager,
         "virtual_services_recording": register_recording_manager,
         "virtual_services_messaging_virtual_service": register_messaging_virtual_service_manager,
+        "virtual_services_state": register_state_manager,
+        "virtual_services_blueprint": register_blueprint_manager,
     }
 
     for name, register_fn in registry.items():
