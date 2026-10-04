@@ -12,8 +12,8 @@ from sv_mcp.models.vs.web_action import WebAction
 from sv_mcp.telemetry import run_tool
 from sv_mcp.tools.utils import vs_api_request, error_result
 
-# The API answers an invalid objectAction or filter operation with HTTP 500 and silently drops unknown fields,
-# so STATE_UPDATE definitions are checked here first.
+# The API answers an invalid objectAction or filter operation with HTTP 500, so STATE_UPDATE definitions are
+# checked here first.
 _STATE_UPDATE_OBJECT_ACTIONS = ("STORE_OBJECT", "UPDATE_OBJECT", "DELETE_OBJECT", "UPDATE_VALUE", "INCREMENT_VALUE")
 _STATE_UPDATE_FILTER_OPERATIONS = ("EQUALS", "LESS_THAN", "GREATER_THAN", "STARTS_WITH", "ENDS_WITH", "IN_LIST")
 _STATE_UPDATE_KEYS = {"model", "filters", "parameters", "objectAction"}
@@ -297,14 +297,15 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                   Delete object removes every matched row and takes parameters [].
               If the API rejects a definition, read its error, fix the definition and retry.
             - Per-key state (state keyed by a value in the request, e.g. per user, device or order id):
-              1. Seed one row per key, e.g. virtual_services_test_data create_from_csv with columns vin, locked.
-              2. Read transaction: URL equals_url "/v1/vehicles/${vin}/status". The matcher selects the row whose
-                 vin is in the path, and the response reads that row, e.g. ${locked}.
+              1. Seed one row per key, e.g. virtual_services_test_data create_from_csv with columns account_id, locked.
+              2. Read transaction: URL equals_url "/v1/accounts/${account_id}/status". The matcher selects the
+                 row whose account_id is in the path, and the response reads that row, e.g. ${locked}.
               3. Write transaction: the same URL with POST and an UPDATE_OBJECT action:
-                 {"model": "vehicles_csv", "filters": [{"key": "vin", "operation": "EQUALS", "values": ["${vin}"]}],
+                 {"model": "accounts_csv",
+                  "filters": [{"key": "account_id", "operation": "EQUALS", "values": ["${account_id}"]}],
                   "parameters": [{"key": "locked", "value": "${jsonPath request.body '$.locked'}"}],
                   "objectAction": "UPDATE_OBJECT"}
-                 ${vin} in the filter value resolves to the matched row's value, so only that row changes.
+                 ${account_id} in the filter value resolves to the matched row's value, so only that row changes.
               Use STORE_OBJECT with blazeData reads instead when the rows are created at runtime.
             - Verify: the sandbox runs state updates (see virtual_services_sandbox, "Testing stateful
               transactions"). The state of a deployed virtual service is the reliable check.

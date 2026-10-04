@@ -352,3 +352,10 @@ async def test_create_from_csv_counts_rows(manager, csv_file):
     assert result.result[0]["data_model_asset_id"] == "asset-1"
     assert result.total == 1
     assert result.has_more is False
+
+
+async def test_create_from_schema_rejects_non_string_global_variables_before_any_call(manager):
+    with patch("sv_mcp.tools.vs.test_data_manager.tdm_api_request") as mock_req:
+        result = await manager.create_from_schema(1, 123, "my-service", ENTITIES, global_variables={"count": 0})
+    mock_req.assert_not_called()
+    assert result.error.startswith("global_variables must be a flat map")

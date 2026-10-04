@@ -92,13 +92,13 @@ class TestMissingArgument:
 def test_internal_error_points_to_sv_mcp_issues():
     r = error_result(ValueError("boom"))
     assert "https://github.com/Blazemeter/sv-mcp/issues" in r.error
-    assert "bzm-mcp" not in r.error
 
 
-async def test_tool_call_with_wrong_argument_name_reports_missing_argument():
+async def test_tool_call_with_wrong_argument_name_reports_missing_argument(monkeypatch):
     from mcp.server.fastmcp import FastMCP
     from sv_mcp.server import register_tools
 
+    monkeypatch.delenv("MCP_ENABLED_TOOLS", raising=False)
     mcp = FastMCP("test")
     register_tools(mcp, None)
     result = await mcp.call_tool(

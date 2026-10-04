@@ -216,12 +216,12 @@ class HttpTransactionManager:
                 error=generation_result.error,
                 info=[f"transaction_id={transaction_id}",
                       "Sandbox data generation failed — transaction was created. Call virtual_services_sandbox "
-                      "generation_status until it returns true, then test_request."]
+                      "generation_status until it returns true, then test_request with transaction_id."]
             )
-        check_result = await sandbox_manager.hold_transaction(workspace_id, transaction_id, service_id)
-        if check_result.error:
+        hold_result = await sandbox_manager.hold_transaction(workspace_id, transaction_id, service_id)
+        if hold_result.error:
             return BaseResult(
-                error=check_result.error,
+                error=hold_result.error,
                 info=[f"transaction_id={transaction_id}", "Sandbox check failed — transaction was created"]
             )
 

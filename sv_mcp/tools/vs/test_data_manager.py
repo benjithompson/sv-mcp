@@ -105,6 +105,8 @@ class TestDataManager:
         data_model_content: dict,
         global_variables: Optional[Dict[str, str]] = None,
     ) -> BaseResult:
+        if global_variables is not None and (invalid := _invalid_global_variables(global_variables)):
+            return invalid
         pkg1_name = f"MS-{service_name}-{service_id}"
         pkg2_name = f"MS-service-{service_id}"
         pkg3_name = f"global-entity-{service_id}"
@@ -500,7 +502,7 @@ class TestDataManager:
         raw_asset = fetch_result.result[0]
         asset_id = raw_asset["id"]
 
-        # Full replacement of the map; same data shape as the global-entity asset created at step 7/7
+        # Full replacement of the map, in the data shape that _run_tdm_creation uses for the global-entity asset
         return await tdm_api_request(
             self.token, "PUT",
             f"{WORKSPACES_ENDPOINT}/{workspace_id}/{TDM_ASSETS_ENDPOINT}/{asset_id}",

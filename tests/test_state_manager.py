@@ -14,7 +14,7 @@ def manager():
     return StateManager(token=MagicMock(), ctx=MagicMock())
 
 
-async def test_read_data(manager):
+async def test_read_data_builds_testdata_endpoint(manager):
     with patch("sv_mcp.tools.vs.state_manager.vs_api_request") as mock_req:
         mock_req.return_value = BaseResult(result=[])
         await manager.read_data(workspace_id=1, vs_id=55)
@@ -24,7 +24,7 @@ async def test_read_data(manager):
     assert call.kwargs["result_formatter"] is format_service_data
 
 
-async def test_export_data(manager):
+async def test_export_data_builds_refresh_endpoint(manager):
     with patch("sv_mcp.tools.vs.state_manager.vs_api_request") as mock_req:
         mock_req.return_value = BaseResult(result=[])
         await manager.export_data(workspace_id=1, vs_id=55)

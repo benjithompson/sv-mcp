@@ -46,7 +46,8 @@ class SandboxManager:
         if result.error:
             return result
         # The GET loads the transaction only until the sandbox regenerates its service data; the
-        # sandbox then falls back to its stored configuration. PATCH stores this transaction there.
+        # sandbox then falls back to its stored configuration. PATCH stores this transaction there,
+        # and hold_transaction stores it again if the regeneration drops it.
         service_id = result.result[0].serviceId if result.result else None
         if service_id is None:
             result.append_warnings(["The sandbox returned no serviceId, so the transaction was not stored in its "
@@ -122,7 +123,7 @@ class SandboxManager:
         if not isinstance(request, dict):
             return BaseResult(error="request must be an object with the HTTP request details. See SandboxRequest schema.")
         http_request = dict(request)
-        # The API reads the request body from "body"; earlier versions of this tool documented "content".
+        # Accept "content" as an alias of "body", which the API reads.
         content = http_request.pop("content", None)
         if "body" not in http_request and content is not None:
             http_request["body"] = content

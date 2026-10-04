@@ -13,6 +13,7 @@ class BaseResult(BaseModel):
 
     @model_validator(mode="after")
     def count_rows(self) -> "BaseResult":
+        """A list result that carries no paging info is complete: total is its length, has_more is False."""
         if isinstance(self.result, list):
             if self.total is None:
                 self.total = len(self.result)
