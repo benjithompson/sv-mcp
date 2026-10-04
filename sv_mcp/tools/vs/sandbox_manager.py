@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, List
 import httpx
 from mcp.server.fastmcp import Context
 
-from sv_mcp.config.blazemeter import VS_SANDBOX_ENDPOINT, VS_TOOLS_PREFIX, WORKSPACES_ENDPOINT
+from sv_mcp.config.blazemeter import VS_SANDBOX_ENDPOINT, VS_TOOLS_PREFIX, VS_TRANSACTIONS_ENDPOINT, WORKSPACES_ENDPOINT
 from sv_mcp.config.token import BzmToken
 from sv_mcp.formatters.sandbox import format_sandbox_test_request, format_sandbox, format_sandbox_dataset_state
 from sv_mcp.models.result import BaseResult
@@ -53,13 +53,7 @@ class SandboxManager:
                                     "configuration. It can fall back to its stored transaction after the next "
                                     "data regeneration."])
         else:
-            stored = await vs_api_request(
-                self.token,
-                "PATCH",
-                f"{WORKSPACES_ENDPOINT}/{workspace_id}/{VS_SANDBOX_ENDPOINT}",
-                result_formatter=format_sandbox,
-                json={"serviceId": service_id, "transactionId": transaction_id}
-            )
+            stored = await self._store(workspace_id, service_id, transaction_id)
             if stored.error:
                 return stored
             if stored.result:
@@ -67,6 +61,45 @@ class SandboxManager:
         result.append_info(["Sandbox initialized. You MUST now call 'test_request' action with the HTTP request details to actually run the test. "
                             "Processing actions on the transaction, state updates included, run during 'test_request'."])
         return result
+
+    async def _store(self, workspace_id: int, service_id: int, transaction_id: int) -> BaseResult:
+        return await vs_api_request(
+            self.token,
+            "PATCH",
+            f"{WORKSPACES_ENDPOINT}/{workspace_id}/{VS_SANDBOX_ENDPOINT}",
+            result_formatter=format_sandbox,
+            json={"serviceId": service_id, "transactionId": transaction_id}
+        )
+
+    async def _service_id_of(self, workspace_id: int, transaction_id: int) -> Optional[int]:
+        result = await vs_api_request(
+            self.token,
+            "GET",
+            f"{WORKSPACES_ENDPOINT}/{workspace_id}/{VS_TRANSACTIONS_ENDPOINT}/{transaction_id}"
+        )
+        if result.error or not result.result or not isinstance(result.result[0], dict):
+            return None
+        return result.result[0].get("serviceId")
+
+    async def hold_transaction(self, workspace_id: int, transaction_id: int,
+                               service_id: Optional[int] = None) -> BaseResult:
+        check_result = await self.check_transaction(workspace_id, transaction_id)
+        if not check_result.error:
+            return check_result
+        # When the data generation started by init finishes, the sandbox falls back to an older stored
+        # transaction and drops the PATCH sent by init. Storing the transaction again after that keeps it.
+        if service_id is None:
+            service_id = await self._service_id_of(workspace_id, transaction_id)
+            if service_id is None:
+                return check_result
+        stored = await self._store(workspace_id, service_id, transaction_id)
+        if stored.error:
+            return stored
+        held = await self.check_transaction(workspace_id, transaction_id)
+        if not held.error:
+            held.append_info([f"The sandbox had fallen back to another transaction; transaction {transaction_id} "
+                              "was stored again."])
+        return held
 
     async def check_transaction(self, workspace_id: int, transaction_id: int) -> BaseResult:
         result = await vs_api_request(
@@ -96,9 +129,9 @@ class SandboxManager:
         if http_request.get("body") is not None and not _is_base64(http_request["body"]):
             return BaseResult(error="request.body must be base64-encoded.")
         if transaction_id is not None:
-            check_result = await self.check_transaction(workspace_id, transaction_id)
-            if check_result.error:
-                return check_result
+            held = await self.hold_transaction(workspace_id, transaction_id)
+            if held.error:
+                return held
         sandbox_request = {
             "httpRequest": http_request,
         }
@@ -188,8 +221,11 @@ def register(mcp, token: Optional[BzmToken]) -> None:
              then `test_request`.
           5. If a STATE_UPDATE consumes an HTTP call result (${httpcalls.<name>.response.body}), call
              `set_action_mocks` after `init` and before `test_request` so the HTTP_CALL action returns a fixed response.
-          Limits: there is one sandbox per user, so another session that calls `init` replaces the transaction.
-          Pass transaction_id to `test_request` to detect this. The sandbox state is not consistent between calls.
+          Limits: when the data generation started by `init` finishes, the sandbox can fall back to an older
+          stored transaction. There is also one sandbox per user, so another session that calls `init` replaces
+          the transaction. Pass transaction_id to `test_request`: it stores the transaction again if the sandbox
+          holds another one, and sends the request only when the sandbox holds it.
+          The sandbox state is not consistent between calls.
           `dataset_state` can return an older copy of the data for some seconds, and `reset_dataset` does not
           always clear it. Prefer the response of a state-reading transaction over `dataset_state`. For a final
           check, deploy the virtual service and use virtual_services_state (export_data, read_data, reset), whose
@@ -203,8 +239,9 @@ def register(mcp, token: Optional[BzmToken]) -> None:
             args(dict): Dictionary with the following required parameters:
                 request (SandboxRequest): Mandatory. The request definition (method, path, headers, body).
                 workspace_id (int): Mandatory. The id of the workspace.
-                transaction_id (int): Optional. The id of the transaction passed to init. When set, the request
-                    is sent only if the sandbox still holds this transaction.
+                transaction_id (int): Optional. The id of the transaction passed to init. When set and the
+                    sandbox holds another transaction, the tool stores this one again; the request is sent only
+                    if the sandbox then holds it.
         - dataset_state: Returns the current sandbox dataset: data entity name -> rows.
             Use it after test_request to check the rows a STATE_UPDATE action stored, updated or deleted.
             args(dict): Dictionary with the following required parameters:

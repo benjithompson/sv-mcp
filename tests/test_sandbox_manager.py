@@ -152,13 +152,82 @@ async def test_test_request_with_transaction_id_checks_before_sending(manager):
     assert test_call.args[2] == "/workspaces/1/sandbox/test-request"
 
 
-async def test_test_request_is_not_sent_when_sandbox_holds_another_transaction(manager):
+async def test_test_request_is_not_sent_when_sandbox_keeps_another_transaction(manager):
+    request = {"method": "GET", "path": "/orders", "name": "svc"}
+    other = BaseResult(result=format_sandbox([{"serviceId": 9, "transactionId": 7}]))
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.side_effect = [
+            other,                                  # check
+            BaseResult(result=[{"serviceId": 5}]),  # service id of transaction 2
+            BaseResult(result=[]),                  # PATCH
+            other,                                  # check again
+        ]
+        result = await manager.test_request(request, workspace_id=1, transaction_id=2)
+    assert mock_req.call_count == 4
+    assert all(c.args[2] != "/workspaces/1/sandbox/test-request" for c in mock_req.call_args_list)
+    assert result.error.startswith("The sandbox now holds transaction 7")
+
+
+async def test_test_request_stores_transaction_again_after_fallback(manager):
     request = {"method": "GET", "path": "/orders", "name": "svc"}
     with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
-        mock_req.return_value = BaseResult(result=format_sandbox([{"serviceId": 9, "transactionId": 7}]))
+        mock_req.side_effect = [
+            BaseResult(result=format_sandbox([{"serviceId": 9, "transactionId": 7}])),
+            BaseResult(result=[{"serviceId": 5}]),
+            BaseResult(result=format_sandbox([{"serviceId": 5, "transactionId": 2}])),
+            BaseResult(result=format_sandbox([{"serviceId": 5, "transactionId": 2}])),
+            BaseResult(result=[]),
+        ]
         result = await manager.test_request(request, workspace_id=1, transaction_id=2)
+    calls = mock_req.call_args_list
+    assert calls[1].args[1:3] == ("GET", "/workspaces/1/transactions/2")
+    assert calls[2].args[1] == "PATCH"
+    assert calls[2].kwargs["json"] == {"serviceId": 5, "transactionId": 2}
+    assert calls[4].args[2] == "/workspaces/1/sandbox/test-request"
+    assert result.error is None
+
+
+async def test_hold_transaction_does_not_store_when_sandbox_holds_it(manager):
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=format_sandbox([{"serviceId": 5, "transactionId": 2}]))
+        result = await manager.hold_transaction(workspace_id=1, transaction_id=2, service_id=5)
     assert mock_req.call_count == 1
+    assert result.error is None
+    assert result.info is None
+
+
+async def test_hold_transaction_stores_again_with_given_service_id(manager):
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.side_effect = [
+            BaseResult(result=format_sandbox([{"serviceId": 9, "transactionId": 7}])),
+            BaseResult(result=format_sandbox([{"serviceId": 5, "transactionId": 2}])),
+            BaseResult(result=format_sandbox([{"serviceId": 5, "transactionId": 2}])),
+        ]
+        result = await manager.hold_transaction(workspace_id=1, transaction_id=2, service_id=5)
+    assert [c.args[1] for c in mock_req.call_args_list] == ["GET", "PATCH", "GET"]
+    assert result.error is None
+    assert "stored again" in result.info[0]
+
+
+async def test_hold_transaction_reports_mismatch_when_service_id_is_unknown(manager):
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.side_effect = [
+            BaseResult(result=format_sandbox([{"serviceId": 9, "transactionId": 7}])),
+            BaseResult(error="Not found: transaction"),
+        ]
+        result = await manager.hold_transaction(workspace_id=1, transaction_id=2)
+    assert mock_req.call_count == 2
     assert result.error.startswith("The sandbox now holds transaction 7")
+
+
+async def test_hold_transaction_returns_patch_error(manager):
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.side_effect = [
+            BaseResult(result=format_sandbox([{"serviceId": 9, "transactionId": 7}])),
+            BaseResult(error="Access forbidden"),
+        ]
+        result = await manager.hold_transaction(workspace_id=1, transaction_id=2, service_id=5)
+    assert result.error == "Access forbidden"
 
 
 async def test_dataset_state_builds_endpoint(manager):

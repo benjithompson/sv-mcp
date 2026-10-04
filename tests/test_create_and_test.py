@@ -36,7 +36,7 @@ async def test_create_and_test_all_pass(manager):
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
-    mock_sb.check_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.hold_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.test_request = AsyncMock(return_value=BaseResult(result=[_matched_response()]))
 
     with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
@@ -58,7 +58,7 @@ async def test_create_and_test_all_fail(manager):
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
-    mock_sb.check_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.hold_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.test_request = AsyncMock(return_value=BaseResult(result=[_unmatched_response()]))
 
     with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
@@ -78,7 +78,7 @@ async def test_create_and_test_partial_fail(manager):
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
-    mock_sb.check_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.hold_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.test_request = AsyncMock(side_effect=[
         BaseResult(result=[_matched_response()]),
         BaseResult(result=[_unmatched_response()]),
@@ -133,7 +133,7 @@ async def test_create_and_test_empty_result_counted_as_failure(manager):
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
-    mock_sb.check_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.hold_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.test_request = AsyncMock(return_value=BaseResult(result=[]))
 
     with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
@@ -154,7 +154,7 @@ async def test_create_and_test_test_request_error_counted_as_failure(manager):
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
-    mock_sb.check_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.hold_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.test_request = AsyncMock(return_value=BaseResult(error="Connection refused"))
 
     with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
@@ -175,7 +175,7 @@ async def test_create_and_test_sends_test_cases_after_generation(manager):
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
-    mock_sb.check_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.hold_transaction = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
 
     async def test_request(*_):
         mock_sb.wait_for_generation.assert_awaited_once_with(1)
@@ -219,7 +219,7 @@ async def test_create_and_test_stops_when_sandbox_holds_another_transaction(mana
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
     mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
-    mock_sb.check_transaction = AsyncMock(return_value=BaseResult(error="The sandbox now holds transaction 7"))
+    mock_sb.hold_transaction = AsyncMock(return_value=BaseResult(error="The sandbox now holds transaction 7"))
     mock_sb.test_request = AsyncMock()
 
     with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
@@ -229,7 +229,7 @@ async def test_create_and_test_stops_when_sandbox_holds_another_transaction(mana
             test_cases=[{"method": "GET", "path": "/ping", "name": "svc"}],
         )
 
-    mock_sb.check_transaction.assert_awaited_once_with(1, 99)
+    mock_sb.hold_transaction.assert_awaited_once_with(1, 99, 2)
     assert result.error == "The sandbox now holds transaction 7"
     assert any("transaction_id=99" in s for s in result.info)
     mock_sb.test_request.assert_not_awaited()
