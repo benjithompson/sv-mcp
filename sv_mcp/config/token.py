@@ -1,7 +1,7 @@
 import json
 import base64
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 from functools import lru_cache
 
 
@@ -11,16 +11,19 @@ class BzmTokenError(Exception):
 
 
 class BzmToken:
-    __slots__ = ("id", "secret")
+    __slots__ = ("id", "secret", "source")
 
-    def __init__(self, token_id: str, token_secret: str):
+    def __init__(self, token_id: str, token_secret: str, source: Optional[str] = None):
+        # Messages never include the values: they are printed at startup.
         if not token_id or not isinstance(token_id, str):
-            raise BzmTokenError(f"Invalid Token ID: {token_id!r}")
+            raise BzmTokenError("Invalid Token ID: it must be a non-empty string")
         if not token_secret or not isinstance(token_secret, str):
-            raise BzmTokenError(f"Invalid Token secret: {token_secret!r}")
+            raise BzmTokenError("Invalid Token secret: it must be a non-empty string")
 
         self.id = token_id
         self.secret = token_secret
+        # Where the key came from (e.g. "key file /path/api-key.json"), named in 401 errors
+        self.source = source
 
     @classmethod
     @lru_cache(maxsize=1)
@@ -33,7 +36,10 @@ class BzmToken:
             raw = p.read_text(encoding="utf-8")
             data = json.loads(raw)
         except Exception as e:
-            raise BzmTokenError(f"Error reading/parsing JSON from {p!r}: {e}") from e
+            # Name the error, not its text: a decode error can quote the file content.
+            detail = (f"invalid JSON at line {e.lineno}, column {e.colno}" if isinstance(e, json.JSONDecodeError)
+                      else type(e).__name__)
+            raise BzmTokenError(f"Error reading/parsing JSON from {p!r}: {detail}") from e
 
         try:
             id_val = data["id"]
@@ -41,7 +47,7 @@ class BzmToken:
         except KeyError as e:
             raise BzmTokenError(f"Missing field {e.args[0]!r} in {p!r}") from e
 
-        return cls(token_id=id_val, token_secret=secret_val)
+        return cls(token_id=id_val, token_secret=secret_val, source=f"key file {p}")
 
     def as_basic_auth(self) -> str:
         """

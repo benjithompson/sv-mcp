@@ -79,7 +79,7 @@ def register(mcp, token: Optional[BzmToken]) -> None:
         Actions:
         - list: List blueprints.
             args(dict):
-                keyword (str): Optional. Search text, e.g. "stateful".
+                keyword (str): Optional. Search text in the blueprint name or description, e.g. "oauth".
                 tags (list[str]): Optional. Filter by blueprint tags.
                 limit (int, default=50): The number of blueprints to list.
                 offset (int, default=0): Number of blueprints to skip.
@@ -133,4 +133,4 @@ def register(mcp, token: Optional[BzmToken]) -> None:
         try:
             return await run_tool("virtual_services_blueprint", action, ctx, _dispatch)
         except Exception as exc:
-            return error_result(exc)
+            return error_result(exc, action, args)

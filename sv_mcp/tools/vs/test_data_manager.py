@@ -695,4 +695,4 @@ def register(mcp, token: Optional[BzmToken]) -> None:
         try:
             return await run_tool("virtual_services_test_data", action, ctx, _dispatch)
         except Exception as exc:
-            return error_result(exc)
+            return error_result(exc, action, args)
