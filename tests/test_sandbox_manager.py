@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from sv_mcp.formatters.sandbox import format_sandbox, format_sandbox_dataset_state
 from sv_mcp.models.result import BaseResult
@@ -165,6 +165,34 @@ async def test_generation_status_error_has_no_info(manager):
         result = await manager.generation_status(workspace_id=1)
     assert result.error == "Not found"
     assert result.info is None
+
+
+async def test_wait_for_generation_polls_until_true(manager):
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req, \
+            patch("sv_mcp.tools.vs.sandbox_manager.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        mock_req.side_effect = [BaseResult(result=[False]), BaseResult(result=[True])]
+        result = await manager.wait_for_generation(workspace_id=1)
+    assert mock_req.call_count == 2
+    mock_sleep.assert_awaited_once()
+    assert result.error is None
+    assert result.result == [True]
+
+
+async def test_wait_for_generation_times_out(manager):
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req, \
+            patch("sv_mcp.tools.vs.sandbox_manager.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        mock_req.return_value = BaseResult(result=[False])
+        result = await manager.wait_for_generation(workspace_id=1, timeout=0)
+    mock_sleep.assert_not_awaited()
+    assert result.error == "Sandbox data generation did not finish within 0 s."
+
+
+async def test_wait_for_generation_passes_error_through(manager):
+    with patch("sv_mcp.tools.vs.sandbox_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(error="Not found")
+        result = await manager.wait_for_generation(workspace_id=1)
+    assert mock_req.call_count == 1
+    assert result.error == "Not found"
 
 
 async def test_set_action_mocks_puts_list_body(manager):

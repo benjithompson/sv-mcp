@@ -355,6 +355,21 @@ A typical end-to-end flow an AI assistant can run with these tools:
 5. **Deploy:** `virtual_services_virtual_service` → `create` + `deploy`.
 6. **Inspect or reset:** `virtual_services_state` → `export_data` (track it) + `read_data`, or `reset`. This is the reliable check of the state.
 
+**Per-key state:** when the state is keyed by a value in the request (per user, device or order id), seed one row per key and let the matcher select the row:
+
+1. `virtual_services_test_data` → `create_from_csv` with one row per key, e.g. columns `vin,locked` (entity `vehicles_csv`).
+2. A read transaction with the URL matcher `equals_url` `/v1/vehicles/${vin}/status`. The request selects the row whose `vin` is in the path, and the response reads that row with `${locked}`.
+3. A write transaction with the same URL and `POST`, and a `create_state_update` action:
+   ```json
+   {"model": "vehicles_csv",
+    "filters": [{"key": "vin", "operation": "EQUALS", "values": ["${vin}"]}],
+    "parameters": [{"key": "locked", "value": "${jsonPath request.body '$.locked'}"}],
+    "objectAction": "UPDATE_OBJECT"}
+   ```
+   `${vin}` in the filter value resolves to the matched row's value, so a write changes only that row.
+
+Use `STORE_OBJECT` with `blazeData` reads instead when the rows are created at runtime.
+
 ---
 
 ### Enabling or Disabling MCP Tools

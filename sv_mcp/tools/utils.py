@@ -63,20 +63,18 @@ async def _api_request(base_url: str,
                 data = {"result": data}
 
             result = data.get("result", [])
-            default_total = 0
             if not isinstance(result, list):
                 result = [result]
-                default_total = 1
 
             final_result = result_formatter(result, result_formatter_params) if result_formatter else result
-            total = data.get("total", default_total)
             skip = data.get("skip") or 0
+            # Some endpoints omit "total", so never report fewer rows than were returned.
+            total = max(data.get("total") or 0, skip + len(result))
 
             return BaseResult(
                 result=final_result,
                 error=data.get("error"),
                 total=total,
-                # Single-object responses carry no limit, so count the rows returned.
                 has_more=skip + len(result) < total
             )
         except httpx.HTTPStatusError as e:

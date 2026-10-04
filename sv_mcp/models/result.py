@@ -1,6 +1,6 @@
 from typing import Any, Optional, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class BaseResult(BaseModel):
@@ -10,6 +10,15 @@ class BaseResult(BaseModel):
     error: Optional[str] = Field(description="Error message", default=None)
     info: Optional[List[str]] = Field(description="Info messages", default=None)
     warning: Optional[List[str]] = Field(description="Warning messages", default=None)
+
+    @model_validator(mode="after")
+    def count_rows(self) -> "BaseResult":
+        if isinstance(self.result, list):
+            if self.total is None:
+                self.total = len(self.result)
+            if self.has_more is None:
+                self.has_more = False
+        return self
 
     def append_warnings(self, messages: List[str]):
         if not self.warning:

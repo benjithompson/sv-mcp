@@ -80,6 +80,22 @@ async def test_has_more_counts_returned_rows():
         assert (await vs_api_request(_token(), "GET", "/things")).has_more is False
 
 
+async def test_list_without_total_counts_rows():
+    response = httpx.Response(200, json={"result": [{"id": 1}, {"id": 2}]})
+    with patch("sv_mcp.tools.utils.httpx.AsyncClient", _client_returning(response)):
+        result = await vs_api_request(_token(), "GET", "/things")
+    assert result.total == 2
+    assert result.has_more is False
+
+
+async def test_total_is_never_below_rows_returned():
+    response = httpx.Response(200, json={"result": [{"id": 3}], "total": 0, "skip": 2})
+    with patch("sv_mcp.tools.utils.httpx.AsyncClient", _client_returning(response)):
+        result = await vs_api_request(_token(), "GET", "/things")
+    assert result.total == 3
+    assert result.has_more is False
+
+
 async def test_401_names_the_api_key_source():
     token = _token()
     token.source = "key file /keys/api-key.json"

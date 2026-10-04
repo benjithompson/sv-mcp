@@ -1,4 +1,6 @@
+import asyncio
 import base64
+import time
 from typing import Optional, Dict, Any, List
 
 import httpx
@@ -115,6 +117,16 @@ class SandboxManager:
             result.append_info(["true means service data generation has completed and stateful tests can run; "
                                 "false means it is still in progress, so call 'generation_status' again shortly."])
         return result
+
+    async def wait_for_generation(self, workspace_id: int, timeout: float = 60.0, interval: float = 2.0) -> BaseResult:
+        deadline = time.monotonic() + timeout
+        while True:
+            status = await self.generation_status(workspace_id)
+            if status.error or status.result == [True]:
+                return status
+            if time.monotonic() >= deadline:
+                return BaseResult(error=f"Sandbox data generation did not finish within {timeout:g} s.")
+            await asyncio.sleep(interval)
 
     async def set_action_mocks(self, workspace_id: int, action_mocks: List[Dict[str, Any]]) -> BaseResult:
         if not isinstance(action_mocks, list) or not all(isinstance(m, dict) for m in action_mocks):

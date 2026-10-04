@@ -332,3 +332,23 @@ async def test_global_variables_ignore_assets_whose_name_only_partially_matches(
         )
     assert mock_req.call_count == 1
     assert "No global-entity asset found for service_id=123" in result.error
+
+
+async def test_create_from_csv_counts_rows(manager, csv_file):
+    with patch("sv_mcp.tools.vs.test_data_manager.tdm_api_request") as mock_req:
+        mock_req.side_effect = [
+            BaseResult(result=[MagicMock(id="pkg-1")]),
+            BaseResult(result=[{"id": "asset-1"}]),
+            BaseResult(result=[]),
+            BaseResult(result=[MagicMock(id="pkg-2")]),
+            BaseResult(result=[MagicMock(id="asset-2")]),
+            BaseResult(result=[MagicMock(id="pkg-3")]),
+            BaseResult(result=[MagicMock(id="asset-3")]),
+            BaseResult(result=[]),
+            BaseResult(result=[]),
+        ]
+        result = await manager.create_from_csv(1, 123, "my-service", csv_file)
+    assert mock_req.call_count == 9
+    assert result.result[0]["data_model_asset_id"] == "asset-1"
+    assert result.total == 1
+    assert result.has_more is False

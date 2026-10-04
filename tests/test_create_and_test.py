@@ -35,6 +35,7 @@ async def test_create_and_test_all_pass(manager):
     manager.create = AsyncMock(return_value=BaseResult(result=[_make_transaction()]))
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
     mock_sb.test_request = AsyncMock(return_value=BaseResult(result=[_matched_response()]))
 
     with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
@@ -55,6 +56,7 @@ async def test_create_and_test_all_fail(manager):
     manager.create = AsyncMock(return_value=BaseResult(result=[_make_transaction()]))
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
     mock_sb.test_request = AsyncMock(return_value=BaseResult(result=[_unmatched_response()]))
 
     with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
@@ -73,6 +75,7 @@ async def test_create_and_test_partial_fail(manager):
     manager.create = AsyncMock(return_value=BaseResult(result=[_make_transaction()]))
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
     mock_sb.test_request = AsyncMock(side_effect=[
         BaseResult(result=[_matched_response()]),
         BaseResult(result=[_unmatched_response()]),
@@ -126,6 +129,7 @@ async def test_create_and_test_empty_result_counted_as_failure(manager):
     manager.create = AsyncMock(return_value=BaseResult(result=[_make_transaction()]))
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
     mock_sb.test_request = AsyncMock(return_value=BaseResult(result=[]))
 
     with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
@@ -145,6 +149,7 @@ async def test_create_and_test_test_request_error_counted_as_failure(manager):
     manager.create = AsyncMock(return_value=BaseResult(result=[_make_transaction()]))
     mock_sb = MagicMock()
     mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
     mock_sb.test_request = AsyncMock(return_value=BaseResult(error="Connection refused"))
 
     with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
@@ -158,3 +163,46 @@ async def test_create_and_test_test_request_error_counted_as_failure(manager):
     assert "All 1 test case(s) failed" in result.error
     assert result.result[0].matched is False
     assert "Connection refused" in result.result[0].mismatch_reasons[0]
+
+
+async def test_create_and_test_sends_test_cases_after_generation(manager):
+    manager.create = AsyncMock(return_value=BaseResult(result=[_make_transaction()]))
+    mock_sb = MagicMock()
+    mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.wait_for_generation = AsyncMock(return_value=BaseResult(result=[True]))
+
+    async def test_request(*_):
+        mock_sb.wait_for_generation.assert_awaited_once_with(1)
+        return BaseResult(result=[_matched_response()])
+    mock_sb.test_request = AsyncMock(side_effect=test_request)
+
+    with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
+        result = await manager.create_and_test(
+            transaction_name="t", workspace_id=1, service_id=2,
+            dsl={}, delay=None,
+            test_cases=[{"method": "GET", "path": "/ping", "name": "svc"}],
+        )
+
+    assert result.error is None
+    mock_sb.test_request.assert_awaited_once()
+
+
+async def test_create_and_test_generation_timeout_includes_transaction_id(manager):
+    manager.create = AsyncMock(return_value=BaseResult(result=[_make_transaction(id=99)]))
+    mock_sb = MagicMock()
+    mock_sb.init = AsyncMock(return_value=BaseResult(result=[MagicMock()]))
+    mock_sb.wait_for_generation = AsyncMock(
+        return_value=BaseResult(error="Sandbox data generation did not finish within 60 s.")
+    )
+    mock_sb.test_request = AsyncMock()
+
+    with patch("sv_mcp.tools.vs.http_transaction_manager.SandboxManager", return_value=mock_sb):
+        result = await manager.create_and_test(
+            transaction_name="t", workspace_id=1, service_id=2,
+            dsl={}, delay=None,
+            test_cases=[{"method": "GET", "path": "/ping", "name": "svc"}],
+        )
+
+    assert result.error == "Sandbox data generation did not finish within 60 s."
+    assert any("transaction_id=99" in s for s in result.info)
+    mock_sb.test_request.assert_not_awaited()

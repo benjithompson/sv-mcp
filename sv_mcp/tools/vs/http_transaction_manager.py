@@ -199,6 +199,15 @@ class HttpTransactionManager:
                 error=init_result.error,
                 info=[f"transaction_id={transaction_id}", "Sandbox init failed — transaction was created"]
             )
+        # Template values stay unresolved until the sandbox finishes generating its service data.
+        generation_result = await sandbox_manager.wait_for_generation(workspace_id)
+        if generation_result.error:
+            return BaseResult(
+                error=generation_result.error,
+                info=[f"transaction_id={transaction_id}",
+                      "Sandbox data generation failed — transaction was created. Call virtual_services_sandbox "
+                      "generation_status until it returns true, then test_request."]
+            )
 
         test_results = []
         passed = 0
@@ -350,6 +359,7 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                 encode (bool, default=True): Whether to encode the converted template to Base64.
         - create_and_test: Create a new HTTP transaction and immediately validate it in sandbox.
             Use this instead of `create` when the DSL contains Handlebars templates.
+            Waits up to 60 s for sandbox data generation before it sends the test cases.
             A transaction is only complete when sandbox returns matched=true for all test cases.
             On all-fail: error contains the failure summary; transaction still exists — use update to fix the DSL,
             then re-init with virtual_services_sandbox init and re-test with virtual_services_sandbox test_request.
@@ -373,8 +383,8 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                 result[].matched: True if the test request matched the transaction.
                 result[].body: Decoded response body (plain text or JSON).
                 result[].mismatch_reasons: Why the request did not match (when matched=False).
-                error: All test cases failed, or creation/sandbox init failed.
-                    On sandbox init failure, info still contains transaction_id so the transaction can be recovered.
+                error: All test cases failed, creation/sandbox init failed, or sandbox data generation did not finish.
+                    On sandbox init or generation failure, info still contains transaction_id so the transaction can be recovered.
                 warning: Some (not all) test cases failed.
         - create: Create a new HTTP transaction.
             Important: before using template in transaction definition validate it and
