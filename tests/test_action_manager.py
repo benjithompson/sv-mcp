@@ -120,6 +120,41 @@ async def test_create_state_update_rejects_invalid_object_action_without_calling
         assert "STORE_OBJECT" in result.error and "INCREMENT_VALUE" in result.error
 
 
+UPDATE_OBJECT = {
+    "model": "orders",
+    "filters": [
+        {"key": "id", "operation": "EQUALS", "values": ["${request.query.id}"]},
+        {"key": "status", "operation": "IN_LIST", "values": ["new", "paid"]},
+    ],
+    "parameters": [{"key": "status", "value": "shipped"}],
+    "objectAction": "UPDATE_OBJECT",
+}
+
+
+async def test_create_state_update_accepts_valid_filters(manager):
+    with patch("sv_mcp.tools.vs.action_manager.vs_api_request") as mock_req:
+        mock_req.return_value = BaseResult(result=[])
+        result = await manager.create_state_update("ship order", 1, 2, UPDATE_OBJECT)
+    assert result.error is None
+    assert mock_req.call_args.kwargs["json"]["definition"] == UPDATE_OBJECT
+
+
+@pytest.mark.parametrize("filters, message", [
+    ("id=1", "filters must be a list"),
+    ([{"operation": "EQUALS", "values": ["1"]}], "filters[0] must be an object with a string \"key\""),
+    ([{"key": "id", "operator": "EQUALS", "values": ["1"]}], "Invalid filters[0].operation None"),
+    ([{"key": "id", "operation": "NOT_EQUAL", "values": ["1"]}], "Invalid filters[0].operation 'NOT_EQUAL'"),
+    ([{"key": "id", "operation": "EQUALS", "values": "1"}], "filters[0].values must be a non-empty list of strings"),
+    ([{"key": "id", "operation": "EQUALS", "values": []}], "filters[0].values must be a non-empty list of strings"),
+    ([{"key": "id", "operation": "EQUALS", "values": [1]}], "filters[0].values must be a non-empty list of strings"),
+])
+async def test_create_state_update_rejects_invalid_filters_without_calling_api(manager, filters, message):
+    with patch("sv_mcp.tools.vs.action_manager.vs_api_request") as mock_req:
+        result = await manager.create_state_update("ship order", 1, 2, {**UPDATE_OBJECT, "filters": filters})
+    mock_req.assert_not_called()
+    assert message in result.error
+
+
 async def test_update_rejects_invalid_object_action_without_calling_api(manager):
     with patch("sv_mcp.tools.vs.action_manager.vs_api_request") as mock_req:
         result = await manager.update(1, 2, 3, definition={**STATE_UPDATE, "objectAction": "BOGUS"})
