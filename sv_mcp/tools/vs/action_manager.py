@@ -12,18 +12,31 @@ from sv_mcp.models.vs.web_action import WebAction
 from sv_mcp.telemetry import run_tool
 from sv_mcp.tools.utils import vs_api_request, error_result
 
-# The API answers an unknown objectAction with HTTP 500, which error_result reports as a server-side
-# failure, so the value is checked here first.
+# The API answers an unknown objectAction or filter operation with HTTP 500, which error_result reports as a
+# server-side failure, and it drops unknown filter fields without an error, so the definition is checked here first.
 _STATE_UPDATE_OBJECT_ACTIONS = ("STORE_OBJECT", "UPDATE_OBJECT", "DELETE_OBJECT", "UPDATE_VALUE", "INCREMENT_VALUE")
+_STATE_UPDATE_FILTER_OPERATIONS = ("EQUALS", "LESS_THAN", "GREATER_THAN", "STARTS_WITH", "ENDS_WITH", "IN_LIST")
 
 
-def _invalid_object_action(definition: Any) -> Optional[BaseResult]:
+def _invalid_state_update(definition: Any) -> Optional[BaseResult]:
     if not isinstance(definition, dict):
         return BaseResult(error="A STATE_UPDATE definition must be a JSON object.")
     object_action = definition.get("objectAction")
     if object_action not in _STATE_UPDATE_OBJECT_ACTIONS:
         return BaseResult(error=f"Invalid objectAction {object_action!r}. "
                                 f"Use one of: {', '.join(_STATE_UPDATE_OBJECT_ACTIONS)}.")
+    filters = definition.get("filters", [])
+    if not isinstance(filters, list):
+        return BaseResult(error="filters must be a list of {\"key\", \"operation\", \"values\"} objects.")
+    for index, filter_entry in enumerate(filters):
+        if not isinstance(filter_entry, dict) or not isinstance(filter_entry.get("key"), str):
+            return BaseResult(error=f"filters[{index}] must be an object with a string \"key\" (the data parameter name).")
+        if filter_entry.get("operation") not in _STATE_UPDATE_FILTER_OPERATIONS:
+            return BaseResult(error=f"Invalid filters[{index}].operation {filter_entry.get('operation')!r}. "
+                                    f"Use one of: {', '.join(_STATE_UPDATE_FILTER_OPERATIONS)}.")
+        values = filter_entry.get("values")
+        if not isinstance(values, list) or not values or not all(isinstance(value, str) for value in values):
+            return BaseResult(error=f"filters[{index}].values must be a non-empty list of strings, e.g. [\"42\"].")
     return None
 
 
@@ -91,7 +104,7 @@ class ActionManager:
 
     async def create_state_update(self, action_name: str, workspace_id: int, transaction_id: int,
                                   definition: dict, conditions: Optional[List[dict]] = None) -> BaseResult:
-        invalid = _invalid_object_action(definition)
+        invalid = _invalid_state_update(definition)
         if invalid:
             return invalid
         action_body = {
@@ -113,7 +126,7 @@ class ActionManager:
                      action_name: Optional[str] = None, definition: Optional[Union[WebAction, dict]] = None,
                      conditions: Optional[List[dict]] = None) -> BaseResult:
         if isinstance(definition, dict) and "objectAction" in definition:
-            invalid = _invalid_object_action(definition)
+            invalid = _invalid_state_update(definition)
             if invalid:
                 return invalid
         action_body: Dict[str, Any] = {"id": action_id}
@@ -269,9 +282,13 @@ def register(mcp, token: Optional[BzmToken]) -> None:
                   A value can be a template, e.g. "${math dogFood '-' quantity}".
                 * Store object: model is the entity name, filters is [], and parameters has one entry per field,
                   e.g. [{"key": "id", "value": "${jsonPath request.body '$.id'}"}]. Each match adds one row.
-                * Update object / Delete object: model is the entity name. The filters entry shape is not confirmed,
-                  and the API accepts any filters content without checking it. Copy the definition of an existing
-                  UPDATE_OBJECT or DELETE_OBJECT action, and verify the result on a deployed virtual service.
+                * Update object / Delete object: model is the entity name, and filters selects the rows:
+                  [{"key": "<data parameter>", "operation": "EQUALS", "values": ["<value>"]}]
+                  operation is one of EQUALS, LESS_THAN, GREATER_THAN, STARTS_WITH, ENDS_WITH, IN_LIST.
+                  values is a list of strings: one entry for most operations, one entry per item for IN_LIST.
+                  A value can be a template, e.g. "${request.query.id}". LESS_THAN and GREATER_THAN compare
+                  numbers. Several filters must all match. Update object sets the parameters in every matched row;
+                  Delete object removes every matched row and takes parameters [].
               If the API rejects a definition, read its error, fix the definition and retry.
             - Verify: the sandbox runs state updates (see virtual_services_sandbox, "Testing stateful
               transactions"). The state of a deployed virtual service is the reliable check.
